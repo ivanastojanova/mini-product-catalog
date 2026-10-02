@@ -4,7 +4,8 @@ import type {
   CollectionConfig,
 } from "payload";
 
-import type { Product as PayloadProduct } from "@/payload-types";
+import type { Product as PayloadProduct } from "../payload-types";
+import { notifyRevalidate } from "../lib/notifyRevalidate";
 
 type RevalidateContext = {
   disableRevalidate?: boolean;
@@ -19,17 +20,13 @@ async function invalidateProductCache(args: {
     return;
   }
 
-  try {
-    const { revalidateProductCache } = await import(
-      "@/shared/cms/revalidateProductCache"
-    );
-    revalidateProductCache({
-      slug: args.slug,
-      previousSlug: args.previousSlug,
-    });
-  } catch {
-    // Outside the Next.js runtime (e.g. `payload run` seed) next/cache is unavailable.
-  }
+  // apps/cms and apps/web are separate processes now — notify the
+  // storefront over HTTP (webhook-style) instead of calling `revalidateTag`
+  // in-process. See docs/adr/0002-webhook-based-revalidation.md.
+  await notifyRevalidate({
+    slug: args.slug,
+    previousSlug: args.previousSlug,
+  });
 }
 
 const revalidateAfterChange: CollectionAfterChangeHook<PayloadProduct> = async ({

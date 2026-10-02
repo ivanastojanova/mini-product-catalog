@@ -8,8 +8,7 @@ import sharp from "sharp";
 import { Product } from "./collections/Product";
 import { Media } from "./collections/Media";
 import { Users } from "./collections/Users";
-import { i18nConfig } from "./shared/i18n/config";
-import { defaultLocale, locales } from "./shared/i18n/locales";
+import { defaultLocale, locales, localeLabels } from "./i18n/locales";
 
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
@@ -35,7 +34,7 @@ export default buildConfig({
   localization: {
     locales: locales.map((code) => ({
       code,
-      label: i18nConfig.labels[code],
+      label: localeLabels[code],
     })),
     defaultLocale,
     fallback: true,

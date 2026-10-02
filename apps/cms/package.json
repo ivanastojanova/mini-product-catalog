@@ -1,0 +1,38 @@
+{
+  "name": "@mini-catalog/cms",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "cross-env NODE_OPTIONS=--no-deprecation next dev --port 3001",
+    "build": "cross-env NODE_OPTIONS=--no-deprecation next build",
+    "start": "cross-env NODE_OPTIONS=--no-deprecation next start --port 3001",
+    "lint": "eslint",
+    "payload": "cross-env NODE_OPTIONS=--no-deprecation payload",
+    "seed": "cross-env NODE_OPTIONS=--no-deprecation payload run seed/products.ts",
+    "generate:types": "cross-env NODE_OPTIONS=--no-deprecation payload generate:types",
+    "generate:importmap": "cross-env NODE_OPTIONS=--no-deprecation payload generate:importmap"
+  },
+  "dependencies": {
+    "@payloadcms/db-sqlite": "3.86.0",
+    "@payloadcms/next": "3.86.0",
+    "@payloadcms/richtext-lexical": "3.86.0",
+    "@payloadcms/ui": "3.86.0",
+    "graphql": "^16.14.2",
+    "next": "16.2.10",
+    "payload": "3.86.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "sharp": "^0.35.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "cross-env": "^10.1.0",
+    "dotenv": "^17.4.2",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.10",
+    "typescript": "^5"
+  }
+}

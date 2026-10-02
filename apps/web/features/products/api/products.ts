@@ -1,49 +1,43 @@
-import type { Product as PayloadProduct } from "@/payload-types";
 import type { Product } from "@/features/products/types/product";
 import { productCacheTags } from "@/features/products/lib/cacheTags";
 import { mapProduct } from "@/features/products/lib/mappers";
 import type { Locale } from "@/shared/i18n/locales";
-import { getPayloadClient } from "@/shared/cms/payload";
+import { cmsFetch } from "@/shared/cms/client";
+import type { CmsFindResponse, CmsProduct } from "@/shared/cms/types";
 import { unstable_cache } from "next/cache";
 
 async function fetchProducts(locale: Locale): Promise<Product[]> {
-  const payload = await getPayloadClient();
-
-  const result = await payload.find({
-    collection: "products",
-    locale,
-    depth: 1,
-    limit: 100,
-    sort: "title",
+  const result = await cmsFetch<CmsFindResponse<CmsProduct>>("/api/products", {
+    searchParams: {
+      locale,
+      depth: 1,
+      limit: 100,
+      sort: "title",
+    },
   });
 
-  return result.docs.map((doc) => mapProduct(doc as PayloadProduct));
+  return result.docs.map(mapProduct);
 }
 
 async function fetchProduct(
   slug: string,
   locale: Locale,
 ): Promise<Product | null> {
-  const payload = await getPayloadClient();
-
-  const result = await payload.find({
-    collection: "products",
-    locale,
-    depth: 1,
-    limit: 1,
-    where: {
-      slug: {
-        equals: slug,
-      },
+  const result = await cmsFetch<CmsFindResponse<CmsProduct>>("/api/products", {
+    searchParams: {
+      locale,
+      depth: 1,
+      limit: 1,
+      "where[slug][equals]": slug,
     },
   });
 
-  const doc = result.docs[0] as PayloadProduct | undefined;
+  const doc = result.docs[0];
   return doc ? mapProduct(doc) : null;
 }
 
 /**
- * Locale-aware CMS accessors via Payload Local API.
+ * Locale-aware CMS accessors over the apps/cms REST API.
  * Results are cached indefinitely and invalidated via `revalidateTag`.
  */
 export async function getProducts(locale: Locale): Promise<Product[]> {
@@ -58,16 +52,16 @@ export async function getProducts(locale: Locale): Promise<Product[]> {
 
 /** Slugs only — used by `generateStaticParams` at build time (uncached). */
 export async function getProductSlugs(): Promise<string[]> {
-  const payload = await getPayloadClient();
-
-  const result = await payload.find({
-    collection: "products",
-    depth: 0,
-    limit: 1000,
-    select: {
-      slug: true,
+  const result = await cmsFetch<CmsFindResponse<Pick<CmsProduct, "slug">>>(
+    "/api/products",
+    {
+      searchParams: {
+        depth: 0,
+        limit: 1000,
+        "select[slug]": true,
+      },
     },
-  });
+  );
 
   return result.docs
     .map((doc) => doc.slug)

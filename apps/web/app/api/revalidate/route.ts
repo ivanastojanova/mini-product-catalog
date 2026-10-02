@@ -9,7 +9,7 @@ type RevalidateBody = {
   listingOnly?: boolean;
 };
 
-function isAuthorized(request: Request): boolean {
+export function isAuthorized(request: Request): boolean {
   const secret = process.env.REVALIDATE_SECRET;
 
   if (!secret) {
