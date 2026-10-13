@@ -2,6 +2,17 @@
 
 Guidance for AI coding agents (and humans) working in this repo. Keep this file current as architecture decisions land — see `docs/adr/` for the detailed rationale behind each one.
 
+**Start every session by reading [`docs/PLAN.md`](docs/PLAN.md)** — it tracks phase status and has a "current session handoff" section with exactly what's done/next, so context isn't lost between sessions. Per-phase design detail lives in `docs/specs/`; one-off architectural decisions live in `docs/adr/`.
+
+## Working style
+
+This is a learning project — the human wants to understand the code, not just receive it. Standing rules, not phase-specific:
+
+- Write and explain **one small piece at a time** (one function, one endpoint, one table), then let the human run/test/click through it before moving to the next piece. Do not hand over a large finished diff unprompted.
+- **Ask before** adding a new dependency, and before locking in a decision that has real tradeoffs (ORM choice, hashing algorithm, auth mechanism, library vs. hand-rolled, etc.) — don't silently pick the "default" or "most common" answer. Lay out the actual tradeoff, let the human choose.
+- Security-critical and money-critical code ships with tests in the same change (see Testing section below) — and prefer to write/run those tests interactively with the human rather than presenting them as already-passing.
+- When a phase involves a user-facing flow (auth, cart, checkout), prioritize getting it clickable in the browser early, not just verified by curl/code — the human wants to click through it themselves.
+
 <!-- BEGIN:nextjs-agent-rules -->
 ## This is NOT the Next.js you know
 

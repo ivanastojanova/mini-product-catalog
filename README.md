@@ -240,13 +240,13 @@ Money-critical and security-critical logic ships with tests in the same change, 
 
 ## Roadmap
 
-This project is being extended in phases, each landing with its own ADR(s). See [AGENTS.md](AGENTS.md) for conventions and [docs/adr/](docs/adr/) for the full decision log.
+This project is being extended in phases. See [`docs/PLAN.md`](docs/PLAN.md) for live status and session handoff notes, [`docs/specs/`](docs/specs/) for per-phase design detail, and [`docs/adr/`](docs/adr/) for the frozen decision log.
 
 | Phase | Scope | Status |
 |-------|-------|--------|
 | 0 | AI workflow scaffolding — AGENTS.md, ADR template | ✅ Done |
 | 1 | Monorepo split (apps/web + apps/cms), webhook revalidation, Vitest | ✅ Done |
-| 2 | Customers & hand-rolled JWT auth (httpOnly cookies, refresh rotation) | Next |
+| 2 | Customers & auth (session cookies, not JWT — see [ADR 0003](docs/adr/0003-session-cookie-auth.md)) | 🚧 In progress |
 | 3 | Persistent cart (guest + logged-in, server-side) | Planned |
 | 4 | Checkout & orders (state machine, stock reservation) | Planned |
 | 5 | Mock payment gateway (async, Stripe-style webhook + idempotency) | Planned |
