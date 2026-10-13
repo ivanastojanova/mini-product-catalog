@@ -30,8 +30,8 @@ How the docs fit together:
 - [x] `apps/web/web.db` created and verified via `npx drizzle-kit studio` (confirmed visually: two empty tables).
 - [x] Password hashing built and tested: `apps/web/features/auth/lib/password.ts` (bcrypt, cost factor 12) + `password.test.ts` (4 tests, all passing — no-plaintext-leak, salted/non-deterministic, correct/incorrect verification).
 - [x] Session token generation built and tested: `apps/web/features/auth/lib/session.ts` (random 32-byte base64url token for the cookie + SHA-256 hash of it for the DB row — fast hash is fine here since the input already has 256 bits of entropy, unlike a user-chosen password) + `session.test.ts` (4 tests, all passing — collision resistance, deterministic hashing, no-raw-value-leak, different tokens hash differently).
-- [ ] **Next up:** Drizzle client singleton (`apps/web/shared/db/client.ts`) so app code can query `customers`/`sessions`.
-- [ ] Register endpoint (`POST /api/auth/register` or similar — exact route TBD): hash password → insert customer → create session → set cookie.
+- [x] Drizzle client singleton (`apps/web/shared/db/client.ts`): wraps `better-sqlite3` + `drizzle-orm/better-sqlite3`, cached on `globalThis` to survive dev's module reloads, guarded by `server-only`. Verified with a manual insert/select/delete round-trip against the real `web.db`.
+- [ ] **Next up:** Register endpoint (`POST /api/auth/register` or similar — exact route TBD): hash password → insert customer → create session → set cookie.
 - [ ] Login endpoint: verify password → create session → set cookie.
 - [ ] Logout endpoint: delete session row, clear cookie.
 - [ ] `features/auth/hooks/useSession.ts` + `RegisterForm`/`LoginForm` components.
