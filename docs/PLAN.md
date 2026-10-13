@@ -29,8 +29,8 @@ How the docs fit together:
 - [x] `customers` + `sessions` schema designed and migrated (`apps/web/shared/db/schema.ts`, `apps/web/shared/db/migrations/`). Sessions store a *hash* of the cookie token, not the raw value (same leak-resistance pattern as passwords). Sessions also carry `userAgent`/`ipAddress` for a future "active sessions" UI.
 - [x] `apps/web/web.db` created and verified via `npx drizzle-kit studio` (confirmed visually: two empty tables).
 - [x] Password hashing built and tested: `apps/web/features/auth/lib/password.ts` (bcrypt, cost factor 12) + `password.test.ts` (4 tests, all passing — no-plaintext-leak, salted/non-deterministic, correct/incorrect verification).
-- [ ] **Next up:** session token generation — random value for the cookie + SHA-256 hash of it for the DB row. Same pattern as password.ts: small module + test.
-- [ ] Drizzle client singleton (`apps/web/shared/db/client.ts`) so app code can query `customers`/`sessions`.
+- [x] Session token generation built and tested: `apps/web/features/auth/lib/session.ts` (random 32-byte base64url token for the cookie + SHA-256 hash of it for the DB row — fast hash is fine here since the input already has 256 bits of entropy, unlike a user-chosen password) + `session.test.ts` (4 tests, all passing — collision resistance, deterministic hashing, no-raw-value-leak, different tokens hash differently).
+- [ ] **Next up:** Drizzle client singleton (`apps/web/shared/db/client.ts`) so app code can query `customers`/`sessions`.
 - [ ] Register endpoint (`POST /api/auth/register` or similar — exact route TBD): hash password → insert customer → create session → set cookie.
 - [ ] Login endpoint: verify password → create session → set cookie.
 - [ ] Logout endpoint: delete session row, clear cookie.
