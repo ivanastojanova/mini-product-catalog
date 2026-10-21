@@ -13,7 +13,7 @@ How the docs fit together:
 |---|---|---|---|---|
 | 0 | AI workflow scaffolding (AGENTS.md, ADR template) | ✅ Done | — | — |
 | 1 | Monorepo split (apps/web + apps/cms), webhook revalidation, Vitest | ✅ Done | — | [0001](adr/0001-monorepo-content-commerce-split.md), [0002](adr/0002-webhook-based-revalidation.md) |
-| 2 | Customers & auth (session cookies) | 🚧 In progress | [0002-auth.md](specs/0002-auth.md) | [0003](adr/0003-session-cookie-auth.md), [0004](adr/0004-standalone-commerce-api-service.md) |
+| 2 | Customers & auth (session cookies) | ✅ Done | [0002-auth.md](specs/0002-auth.md) | [0003](adr/0003-session-cookie-auth.md), [0004](adr/0004-standalone-commerce-api-service.md), [0005](adr/0005-cookie-presence-route-protection.md) |
 | 3 | Persistent cart (guest + logged-in, server-side) | Planned | — | — |
 | 4 | Checkout & orders (state machine, stock reservation) | Planned | — | — |
 | 5 | Mock payment gateway (async, Stripe-style webhook + idempotency) | Planned | — | — |
@@ -40,11 +40,14 @@ How the docs fit together:
 - [x] CORS + cookies wired for the cross-origin boundary: `@fastify/cors` registered with the specific `apps/web` origin (`WEB_ORIGIN` env var) + `credentials: true` (never `*` — hard CORS spec rule once credentials are involved); `@fastify/cookie` for reading/setting/clearing the session cookie. Verified with real `curl -H "Origin: http://localhost:3000"` requests against the running server — every response carries the correct `Access-Control-Allow-Origin`/`-Credentials` headers.
 - [x] apps/web's client-side pieces built *before* the restructure and kept as-is, now pointed at apps/api: `features/auth/queries/authKeys.ts` (query-key factory), `features/auth/api/auth.ts` (fetch wrappers — now call `NEXT_PUBLIC_API_URL` with `credentials: "include"`, required for the cookie to cross origins), `features/auth/hooks/useSession.ts` (`useQuery`), `features/auth/hooks/useAuthMutations.ts` (`useRegister`/`useLogin`/`useLogout`, each writing straight into the session query cache on success).
 - [x] Full three-app end-to-end verification: `npm run dev` (root) boots cms + api + web together; ran the complete register → session → logout → login → session cycle via curl against the live `apps/api`, confirmed correct cookie/CORS behavior at every step, confirmed the storefront itself still renders unaffected.
-- [ ] **Next up:** `RegisterForm`/`LoginForm` components (no form primitives decided yet — plain HTML + Tailwind vs. `@base-ui/react/field`+`/form` still an open question, see spec).
-- [ ] An account page (or similar) to host the forms + show logged-in state — no `/account` route exists yet.
-- [ ] Route protection in `apps/web/proxy.ts` for `/account` and `/checkout` (checks session cookie — note: proxy.ts can't call apps/api directly without adding latency to every request; likely needs its own design discussion).
-- [ ] Manual click-through test: sign up, log in, log out, hit a protected route logged-out, confirm redirect.
-- [ ] Update this file + README roadmap table to Phase 2 ✅ Done.
+- [x] **Form primitives decided:** `@base-ui/react/field` + `/form`, consistent with `Button`/`Badge` already wrapping Base UI, and so future forms (checkout, payment) don't re-implement touched/validation/ARIA wiring by hand. Added `components/ui/input.tsx` (via shadcn CLI, import fixed to `@/lib/utils`) and `components/ui/field.tsx` (hand-written wrapper over `Field.Root/Label/Description/Error`).
+- [x] `RegisterForm` / `LoginForm` (`features/auth/components/`): `Form` + `Field` with client-side `validate` for obviously-bad input only; apps/api stays the source of truth (duplicate email, wrong credentials). EN/DE copy dictionaries co-located.
+- [x] Pages: `/[lang]/login` (`LoginView`: login/register tabs, redirects to `/account` once a session exists) and `/[lang]/account` (`AccountView`: name, email, log out; redirects to `/login` when `useSession` returns no customer). Header has an Account link. The combined login+account page was split because protecting `/account` would otherwise lock logged-out users out of the forms.
+- [x] Route protection: `proxy.ts` redirects logged-out requests for `/{locale}/account` and `/{locale}/checkout/*` to `/{locale}/login`, checking **cookie presence only** (no call to apps/api). Pure logic in `features/auth/lib/routeProtection.ts` with 6 tests. UX redirect, not enforcement — apps/api and client `useSession` catch stale cookies. See [ADR 0005](adr/0005-cookie-presence-route-protection.md).
+- [x] Manual browser click-through passed: sign up → account page → log out → hit `/account` logged out → redirected to `/login` → log in; also in `/de`.
+- [x] Phase 2 marked ✅ Done here and in the README roadmap table.
+
+**Next phase: 3 — persistent cart (guest + logged-in, server-side) in apps/api.** No spec written yet; start with one (`docs/specs/0003-cart.md`). Note the existing `apps/web/app/api/cart` + `features/products/api/cart.ts` is a placeholder cart that Phase 3 replaces. Carry-over reminders: every protected apps/api endpoint must verify the session itself (ADR 0005); `sessions.ip_address` and login rate limiting remain open TBDs.
 
 See [AGENTS.md](../AGENTS.md#working-style) for the standing collaboration rules (small pieces, ask before deps/tradeoffs, tests ship with security-critical code, prioritize clickable UI).
 

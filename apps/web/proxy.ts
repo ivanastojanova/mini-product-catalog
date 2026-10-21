@@ -1,11 +1,17 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+import {
+  getLoginRedirect,
+  SESSION_COOKIE_NAME,
+} from "@/features/auth/lib/routeProtection";
 import { defaultLocale, isLocale } from "@/shared/i18n/locales";
 
 /**
  * Next.js 16 renamed `middleware` → `proxy`.
- * Redirect bare `/` to the default locale. Skip admin, API, and assets.
+ * Redirect bare `/` to the default locale, and logged-out requests for
+ * protected pages to /login (cookie-presence check only, see routeProtection.ts).
+ * Skip admin, API, and assets.
  */
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -22,6 +28,16 @@ export function proxy(request: NextRequest) {
   if (pathname === "/") {
     const url = request.nextUrl.clone();
     url.pathname = `/${defaultLocale}`;
+    return NextResponse.redirect(url);
+  }
+
+  const loginRedirect = getLoginRedirect(
+    pathname,
+    request.cookies.has(SESSION_COOKIE_NAME),
+  );
+  if (loginRedirect) {
+    const url = request.nextUrl.clone();
+    url.pathname = loginRedirect;
     return NextResponse.redirect(url);
   }
 

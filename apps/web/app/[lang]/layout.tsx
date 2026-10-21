@@ -24,6 +24,11 @@ export const metadata: Metadata = {
   description: "Localized product catalog",
 };
 
+const headerCopy: Record<Locale, { account: string }> = {
+  en: { account: "Account" },
+  de: { account: "Konto" },
+};
+
 export function generateStaticParams() {
   return locales.map((lang) => ({ lang }));
 }
@@ -60,7 +65,15 @@ export default async function FrontendLayout({
               >
                 Mini Catalog
               </Link>
-              <LanguageSwitcher />
+              <div className="flex items-center gap-4">
+                <Link
+                  href={`/${locale}/account`}
+                  className="text-sm text-muted-foreground hover:text-foreground"
+                >
+                  {headerCopy[locale].account}
+                </Link>
+                <LanguageSwitcher />
+              </div>
             </div>
           </header>
           {children}

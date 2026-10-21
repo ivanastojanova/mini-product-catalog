@@ -246,7 +246,7 @@ This project is being extended in phases. See [`docs/PLAN.md`](docs/PLAN.md) for
 |-------|-------|--------|
 | 0 | AI workflow scaffolding — AGENTS.md, ADR template | ✅ Done |
 | 1 | Monorepo split (apps/web + apps/cms), webhook revalidation, Vitest | ✅ Done |
-| 2 | Customers & auth (session cookies, not JWT — see [ADR 0003](docs/adr/0003-session-cookie-auth.md)) | 🚧 In progress |
+| 2 | Customers & auth (session cookies, not JWT — see [ADR 0003](docs/adr/0003-session-cookie-auth.md)) | ✅ Done |
 | 3 | Persistent cart (guest + logged-in, server-side) | Planned |
 | 4 | Checkout & orders (state machine, stock reservation) | Planned |
 | 5 | Mock payment gateway (async, Stripe-style webhook + idempotency) | Planned |
