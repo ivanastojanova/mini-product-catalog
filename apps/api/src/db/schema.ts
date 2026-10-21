@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
-/** A registered shopper. Lives entirely in apps/web — Payload's Users collection is unrelated (admin-only). */
+/** A registered shopper. Lives entirely in apps/api — Payload's Users collection (apps/cms) is unrelated (admin-only). */
 export const customers = sqliteTable("customers", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   email: text("email").notNull().unique(),

@@ -36,3 +36,32 @@ export function validateRegisterInput(
 
   return null;
 }
+
+export type LoginValidationError = {
+  field: "email" | "password";
+  message: string;
+};
+
+export type LoginInput = {
+  email: string;
+  password: string;
+};
+
+/**
+ * Validates login *shape* only (not strength) — a password set back when the
+ * minimum was different, or before one existed, must still be able to log in.
+ * Real credential correctness is checked against the DB, not here.
+ */
+export function validateLoginInput(
+  input: LoginInput,
+): LoginValidationError | null {
+  if (!EMAIL_PATTERN.test(input.email.trim())) {
+    return { field: "email", message: "Enter a valid email address." };
+  }
+
+  if (!input.password) {
+    return { field: "password", message: "Password is required." };
+  }
+
+  return null;
+}
