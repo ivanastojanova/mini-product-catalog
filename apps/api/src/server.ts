@@ -2,22 +2,18 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import cookie from "@fastify/cookie";
 
+import { corsOptions } from "./corsConfig.js";
 import { registerAuthRoutes } from "./auth/routes/register.js";
 import { registerLoginRoute } from "./auth/routes/login.js";
 import { registerLogoutRoute } from "./auth/routes/logout.js";
 import { registerSessionRoute } from "./auth/routes/session.js";
+import { registerCartRoutes } from "./cart/routes/cart.js";
 
 const PORT = Number(process.env.PORT ?? 4000);
 
-/** Origin apps/web runs at — must be a specific origin, not "*", since we send credentials (cookies) cross-origin. */
-const WEB_ORIGIN = process.env.WEB_ORIGIN ?? "http://localhost:3000";
-
 const app = Fastify({ logger: true });
 
-await app.register(cors, {
-  origin: WEB_ORIGIN,
-  credentials: true,
-});
+await app.register(cors, corsOptions);
 
 await app.register(cookie);
 
@@ -27,6 +23,7 @@ registerAuthRoutes(app);
 registerLoginRoute(app);
 registerLogoutRoute(app);
 registerSessionRoute(app);
+registerCartRoutes(app);
 
 app
   .listen({ port: PORT })

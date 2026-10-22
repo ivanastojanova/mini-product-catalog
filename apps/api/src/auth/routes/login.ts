@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 
 import { db } from "../../db/client.js";
 import { customers, sessions } from "../../db/schema.js";
+import { mergeCartOnAuth } from "../../cart/lib/mergeOnAuth.js";
 import { verifyPassword } from "../lib/password.js";
 import { generateSessionToken, hashSessionToken } from "../lib/session.js";
 import {
@@ -60,6 +61,8 @@ export async function loginHandler(
   if (!passwordMatches) {
     return reply.code(401).send({ message: INVALID_CREDENTIALS_MESSAGE });
   }
+
+  mergeCartOnAuth(request, reply, customer.id);
 
   const token = generateSessionToken();
 

@@ -1,10 +1,8 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import {
-  useAddToCart,
-  useProductCart,
-} from "@/features/products/hooks/useAddToCart";
+import { useAddToCart } from "@/features/cart/hooks/useAddToCart";
+import { useCartQuantity } from "@/features/cart/hooks/useCart";
 import type { Locale } from "@/shared/i18n/locales";
 
 type AddToCartButtonProps = {
@@ -39,10 +37,8 @@ const copy: Record<
 
 export function AddToCartButton({ slug, locale }: AddToCartButtonProps) {
   const labels = copy[locale];
-  const { data: cart } = useProductCart(slug);
+  const { data: quantity = 0 } = useCartQuantity(slug);
   const { mutate, isPending, isError, error, reset } = useAddToCart(slug);
-
-  const quantity = cart?.quantity ?? 0;
 
   return (
     <div className="flex flex-col gap-2">

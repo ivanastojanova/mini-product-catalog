@@ -96,7 +96,7 @@ CMS write (Payload admin / seed)  — apps/cms
                                                               ▼
                                                    ┌─────────────────────┐
                                                    │  GET /api/stock     │
-                                                   │  POST /api/cart     │
+                                                   │  (cart → apps/api)  │
                                                    └─────────────────────┘
 ```
 
@@ -117,7 +117,7 @@ apps/web/
 |------|------------|--------|
 | `apps/web/app/api/revalidate` | `:3000/api/revalidate` | apps/web — cache purge, called by apps/cms webhook |
 | `apps/web/app/api/stock/[slug]` | `:3000/api/stock/[slug]` | apps/web — inventory stub |
-| `apps/web/app/api/cart` | `:3000/api/cart` | apps/web — flaky cart stub |
+| `apps/api` `/cart`, `/cart/items/:slug` | `:4000/cart*` | apps/api — persistent guest + customer cart (Phase 3) |
 | `apps/cms/app/admin` | `:3001/admin` | Payload admin |
 | `apps/cms/app/api/*` | `:3001/api/*` | Payload REST + GraphQL |
 
@@ -144,7 +144,7 @@ Locale is part of the cache **key**, not the tag — one save refreshes both loc
 |------|-------|-----|
 | Name, description, images, specs, **price** | CMS → Server Components → cached HTML | SEO / catalog; refreshed via revalidation |
 | **Stock** | Client → TanStack Query → `/api/stock/[slug]` | Volatile; page paints while it loads |
-| **Cart quantity** | Client → TanStack mutation → `/api/cart` | Optimistic UI demo |
+| **Cart quantity** | Client → TanStack mutation → apps/api `/cart/items` | Server-side cart (guest cookie or customer), optimistic UI |
 
 Price stays in the CMS cache on purpose — treating it as client-only would hide the revalidation story. Stock changes often and isn't SEO-critical.
 
@@ -207,30 +207,30 @@ fetch("http://localhost:3000/api/revalidate", {
 | Secured revalidation | Done — Bearer / `x-revalidate-secret`, now a real cross-service webhook |
 | Multilanguage (`en` / `de`) | Done — switcher in layout, config duplicated per app (ADR 0001) |
 | Optimistic cart | Done — see below |
-| Tests | Started — Vitest in `apps/web`, see below |
+| Tests | Vitest in `apps/api` and `apps/web`, see below |
 
 ### Optimistic add-to-cart
 
-On a PDP, **Add to cart** updates **"N in cart"** immediately, then `POST /api/cart` confirms or rolls back (~40% random failure + latency). Mutation: `useAddToCart`; UI: `AddToCartButton`.
+On a PDP, **Add to cart** updates **"N in cart"** immediately, then `POST /cart/items` on apps/api confirms (the server's quantity wins, e.g. when clamped at 10) or rolls back on failure (unknown product, CMS or API down). Mutation: `features/cart/hooks/useAddToCart`; UI: `AddToCartButton`. The old flaky stub is gone, so to see a rollback, stop apps/api and click the button.
 
 ---
 
 ## Testing
 
-Vitest lives in `apps/web`.
+Vitest lives in `apps/api` and `apps/web`.
 
 ```bash
-npm run test                        # from root — runs apps/web's suite
-npm run test --workspace=apps/web   # equivalent, explicit
+npm run test                        # from root — runs apps/api's suite, then apps/web's
+npm run test --workspace=apps/api   # one app, explicit
 npm run test:watch --workspace=apps/web
 ```
 
-Current coverage: `/api/revalidate` auth accept/reject + tag selection on rename (`apps/web/app/api/revalidate/route.test.ts`) — the highest-value test from the original take-home's testing plan, now also covering the webhook path end-to-end.
+Current coverage: apps/api has Vitest suites for auth (hashing, session tokens, register/login/logout/session routes) and the cart (resolution, routes, guest→customer merge); apps/web covers the cart client (API wrappers, optimistic add + rollback) and route protection. Also `/api/revalidate` auth accept/reject + tag selection on rename (`apps/web/app/api/revalidate/route.test.ts`) — the highest-value test from the original take-home's testing plan, now also covering the webhook path end-to-end.
 
 Planned, in priority order as each phase lands (see [AGENTS.md](AGENTS.md) "Testing"):
 
 1. Auth: password hashing, JWT sign/verify/expiry, refresh-token rotation
-2. Cart: guest↔user merge, quantity edge cases
+2. ~~Cart: guest↔user merge, quantity edge cases~~ — done in Phase 3
 3. Orders: total calculation, state transitions, authorization (owner-or-admin)
 4. Payments: webhook signature verification, idempotency/replay safety
 
@@ -247,7 +247,7 @@ This project is being extended in phases. See [`docs/PLAN.md`](docs/PLAN.md) for
 | 0 | AI workflow scaffolding — AGENTS.md, ADR template | ✅ Done |
 | 1 | Monorepo split (apps/web + apps/cms), webhook revalidation, Vitest | ✅ Done |
 | 2 | Customers & auth (session cookies, not JWT — see [ADR 0003](docs/adr/0003-session-cookie-auth.md)) | ✅ Done |
-| 3 | Persistent cart (guest + logged-in, server-side) | Planned |
+| 3 | Persistent cart (guest cookie + customer cart, merged on login — see [ADR 0006](docs/adr/0006-cookie-guest-cart-merged-on-login.md)) | ✅ Done |
 | 4 | Checkout & orders (state machine, stock reservation) | Planned |
 | 5 | Mock payment gateway (async, Stripe-style webhook + idempotency) | Planned |
 | 6 | Frontend e-commerce polish (filtering, mini-cart, order confirmation) | Planned |

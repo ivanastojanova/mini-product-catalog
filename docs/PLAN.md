@@ -14,7 +14,7 @@ How the docs fit together:
 | 0 | AI workflow scaffolding (AGENTS.md, ADR template) | ✅ Done | — | — |
 | 1 | Monorepo split (apps/web + apps/cms), webhook revalidation, Vitest | ✅ Done | — | [0001](adr/0001-monorepo-content-commerce-split.md), [0002](adr/0002-webhook-based-revalidation.md) |
 | 2 | Customers & auth (session cookies) | ✅ Done | [0002-auth.md](specs/0002-auth.md) | [0003](adr/0003-session-cookie-auth.md), [0004](adr/0004-standalone-commerce-api-service.md), [0005](adr/0005-cookie-presence-route-protection.md) |
-| 3 | Persistent cart (guest + logged-in, server-side) | Planned | — | — |
+| 3 | Persistent cart (guest + logged-in, server-side) | ✅ Done | [0003-cart.md](specs/0003-cart.md) | [0006](adr/0006-cookie-guest-cart-merged-on-login.md) |
 | 4 | Checkout & orders (state machine, stock reservation) | Planned | — | — |
 | 5 | Mock payment gateway (async, Stripe-style webhook + idempotency) | Planned | — | — |
 | 6 | Frontend e-commerce polish (filtering, mini-cart, order confirmation) | Planned | — | — |
@@ -47,7 +47,26 @@ How the docs fit together:
 - [x] Manual browser click-through passed: sign up → account page → log out → hit `/account` logged out → redirected to `/login` → log in; also in `/de`.
 - [x] Phase 2 marked ✅ Done here and in the README roadmap table.
 
-**Next phase: 3 — persistent cart (guest + logged-in, server-side) in apps/api.** No spec written yet; start with one (`docs/specs/0003-cart.md`). Note the existing `apps/web/app/api/cart` + `features/products/api/cart.ts` is a placeholder cart that Phase 3 replaces. Carry-over reminders: every protected apps/api endpoint must verify the session itself (ADR 0005); `sessions.ip_address` and login rate limiting remain open TBDs.
+**Phase 3 — Persistent cart.** Done. See [specs/0003-cart.md](specs/0003-cart.md) and [ADR 0006](adr/0006-cookie-guest-cart-merged-on-login.md). Progress:
+
+- [x] Decided with the user: merge = sum + cap at 10; validate slugs against apps/cms on add; store only the SHA-256 hash of the guest token; no stock enforcement in the cart.
+- [x] Schema + migration `0001_carts.sql` (`carts`, `cart_items`; owner and quantity `CHECK`s verified directly in SQLite).
+- [x] `resolveCart` (`apps/api/src/cart/lib/resolveCart.ts`): session beats guest cookie, 30-day guest expiry, pure lookup that never creates rows.
+- [x] Routes (`apps/api/src/cart/routes/cart.ts`): `GET /cart`, `POST /cart/items` (increment, clamped, CMS slug check → 404/502), `PUT /cart/items/:slug` (absolute, existing lines only), `DELETE /cart/items/:slug` (idempotent 204). CORS options in `src/corsConfig.ts` with explicit `PUT`/`DELETE`. `CMS_API_URL` added to apps/api env.
+- [x] Merge (`mergeGuestCart.ts` + shared `mergeOnAuth.ts`), called from login and register after credentials/validation succeed. One transaction; a merge failure is logged and never blocks sign-in.
+- [x] apps/web: `features/cart/` (api, hooks, `cartMath`, query keys, types), shared `shared/api/client.ts` (`apiFetch`), one whole-cart query read via `select`, optimistic add with rollback; login/register invalidate the cart, logout empties it. Placeholder `app/api/cart` and the old `features/products` cart files deleted.
+- [x] Restored the auth lib tests that the Phase 2 restructure had dropped (`password`, `session`, `getSession`).
+- [x] Tests: apps/api 110, apps/web 34. Mutation-checked the riskiest ones (merge before password check, no transaction, no rollback, ignoring the server quantity all make tests fail).
+- [x] Live curl walkthrough against all three apps, and a manual browser click-through (guest add, cap at 10, separate window = separate cart, register keeps the guest cart, logout empties, login restores it without a reload; EN and DE).
+
+**Next phase: 4 — Checkout & orders (state machine, stock reservation).** No spec yet; start with `docs/specs/0004-checkout.md`. Things Phase 4 inherits from Phase 3:
+- The cart stores slug + quantity only. Price is looked up from the CMS and **snapshotted when the order is created**.
+- Cart lines are not re-validated after they're added (a CMS slug rename or deletion orphans them). Checkout must reject or drop unknown lines.
+- Stock was deliberately left out of the cart; the existing `/api/stock/[slug]` is a simulated stub in apps/web, not an authority. Real stock + reservation belongs here.
+- `/checkout/*` is already behind the cookie-presence redirect (ADR 0005); apps/api must still verify the session itself on every order endpoint.
+- Merge atomicity relies on `better-sqlite3`'s synchronous transactions (ADR 0006).
+
+Open TBDs carried forward: `sessions.ip_address` unpopulated, login rate limiting, expired session/guest-cart row cleanup, production `SameSite`/cookie scope across domains (ADR 0004), no cart page or mini-cart until Phase 6.
 
 See [AGENTS.md](../AGENTS.md#working-style) for the standing collaboration rules (small pieces, ask before deps/tradeoffs, tests ship with security-critical code, prioritize clickable UI).
 
