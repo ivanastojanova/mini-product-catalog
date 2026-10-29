@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "db:seed-inventory": "tsx --env-file=.env src/inventory/seed.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.3",

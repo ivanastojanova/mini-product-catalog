@@ -2,7 +2,7 @@
 export const MIN_PASSWORD_LENGTH = 8;
 
 /** Deliberately permissive — just "has an @ and something on both sides". Real deliverability is confirmed by use, not regex. */
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export type RegisterValidationError = {
   field: "email" | "password" | "name";

@@ -95,8 +95,8 @@ CMS write (Payload admin / seed)  — apps/cms
                                    Client (TanStack Query)    │
                                                               ▼
                                                    ┌─────────────────────┐
-                                                   │  GET /api/stock     │
-                                                   │  (cart → apps/api)  │
+                                                   │  (cart, stock →     │
+                                                   │   apps/api)         │
                                                    └─────────────────────┘
 ```
 
@@ -116,8 +116,8 @@ apps/web/
 | Path | Public URL | Owner |
 |------|------------|--------|
 | `apps/web/app/api/revalidate` | `:3000/api/revalidate` | apps/web — cache purge, called by apps/cms webhook |
-| `apps/web/app/api/stock/[slug]` | `:3000/api/stock/[slug]` | apps/web — inventory stub |
 | `apps/api` `/cart`, `/cart/items/:slug` | `:4000/cart*` | apps/api — persistent guest + customer cart (Phase 3) |
+| `apps/api` `/stock/:slug` | `:4000/stock/:slug` | apps/api — real inventory: available = on hand − reserved (Phase 4) |
 | `apps/cms/app/admin` | `:3001/admin` | Payload admin |
 | `apps/cms/app/api/*` | `:3001/api/*` | Payload REST + GraphQL |
 
@@ -143,12 +143,12 @@ Locale is part of the cache **key**, not the tag — one save refreshes both loc
 | Data | Where | Why |
 |------|-------|-----|
 | Name, description, images, specs, **price** | CMS → Server Components → cached HTML | SEO / catalog; refreshed via revalidation |
-| **Stock** | Client → TanStack Query → `/api/stock/[slug]` | Volatile; page paints while it loads |
+| **Stock** | Client → TanStack Query → apps/api `/stock/:slug` | Volatile; page paints while it loads |
 | **Cart quantity** | Client → TanStack mutation → apps/api `/cart/items` | Server-side cart (guest cookie or customer), optimistic UI |
 
 Price stays in the CMS cache on purpose — treating it as client-only would hide the revalidation story. Stock changes often and isn't SEO-critical.
 
-Simulate stock failure: `GET /api/stock/malmo-lounge-chair?fail=1`.
+Stock is seeded once from the CMS slugs (`npm run db:seed-inventory --workspace=apps/api`, 10 units each, never overwrites existing rows). To see an out-of-stock label, set a product's `on_hand` to 0 in Drizzle Studio.
 
 ### Cross-origin media
 
@@ -248,7 +248,7 @@ This project is being extended in phases. See [`docs/PLAN.md`](docs/PLAN.md) for
 | 1 | Monorepo split (apps/web + apps/cms), webhook revalidation, Vitest | ✅ Done |
 | 2 | Customers & auth (session cookies, not JWT — see [ADR 0003](docs/adr/0003-session-cookie-auth.md)) | ✅ Done |
 | 3 | Persistent cart (guest cookie + customer cart, merged on login — see [ADR 0006](docs/adr/0006-cookie-guest-cart-merged-on-login.md)) | ✅ Done |
-| 4 | Checkout & orders (state machine, stock reservation) | Planned |
+| 4 | Checkout & orders (state machine, stock reservation — see [ADR 0007](docs/adr/0007-inventory-and-lazy-reservation-expiry.md), [ADR 0008](docs/adr/0008-cookie-bound-guest-orders.md)) | ✅ Done |
 | 5 | Mock payment gateway (async, Stripe-style webhook + idempotency) | Planned |
 | 6 | Frontend e-commerce polish (filtering, mini-cart, order confirmation) | Planned |
 | 7 | CI (lint/typecheck/test on PR) | Planned |

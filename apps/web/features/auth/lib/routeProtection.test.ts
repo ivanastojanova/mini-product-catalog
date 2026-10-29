@@ -8,9 +8,14 @@ describe("getLoginRedirect", () => {
     expect(getLoginRedirect("/de/account", false)).toBe("/de/login");
   });
 
-  it("redirects /checkout and its sub-paths when logged out", () => {
-    expect(getLoginRedirect("/en/checkout", false)).toBe("/en/login");
-    expect(getLoginRedirect("/en/checkout/payment", false)).toBe("/en/login");
+  it("redirects /account sub-paths (order history) when logged out", () => {
+    expect(getLoginRedirect("/en/account/orders", false)).toBe("/en/login");
+  });
+
+  it("leaves checkout and order pages public: guests can check out and view their order", () => {
+    expect(getLoginRedirect("/en/checkout", false)).toBeNull();
+    expect(getLoginRedirect("/de/checkout", false)).toBeNull();
+    expect(getLoginRedirect("/en/orders/abc123", false)).toBeNull();
   });
 
   it("lets protected paths through when a session cookie is present", () => {

@@ -8,6 +8,11 @@ import { registerLoginRoute } from "./auth/routes/login.js";
 import { registerLogoutRoute } from "./auth/routes/logout.js";
 import { registerSessionRoute } from "./auth/routes/session.js";
 import { registerCartRoutes } from "./cart/routes/cart.js";
+import { registerStockRoutes } from "./inventory/routes/stock.js";
+import { registerCheckoutRoutes } from "./orders/routes/checkoutPreview.js";
+import { registerCreateOrderRoute } from "./orders/routes/createOrder.js";
+import { registerOrderRoutes } from "./orders/routes/orders.js";
+import { registerSimulatePaymentRoute } from "./dev/routes/simulatePayment.js";
 
 const PORT = Number(process.env.PORT ?? 4000);
 
@@ -24,6 +29,11 @@ registerLoginRoute(app);
 registerLogoutRoute(app);
 registerSessionRoute(app);
 registerCartRoutes(app);
+registerStockRoutes(app);
+registerCheckoutRoutes(app);
+registerCreateOrderRoute(app);
+registerOrderRoutes(app);
+registerSimulatePaymentRoute(app);
 
 app
   .listen({ port: PORT })
