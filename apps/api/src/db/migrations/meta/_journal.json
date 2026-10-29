@@ -15,6 +15,13 @@
       "when": 1792652079820,
       "tag": "0001_carts",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1793039581937,
+      "tag": "0002_orders_and_inventory",
+      "breakpoints": true
     }
   ]
 }

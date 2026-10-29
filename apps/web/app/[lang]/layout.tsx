@@ -24,9 +24,9 @@ export const metadata: Metadata = {
   description: "Localized product catalog",
 };
 
-const headerCopy: Record<Locale, { account: string }> = {
-  en: { account: "Account" },
-  de: { account: "Konto" },
+const headerCopy: Record<Locale, { account: string; checkout: string }> = {
+  en: { account: "Account", checkout: "Checkout" },
+  de: { account: "Konto", checkout: "Kasse" },
 };
 
 export function generateStaticParams() {
@@ -66,6 +66,12 @@ export default async function FrontendLayout({
                 Mini Catalog
               </Link>
               <div className="flex items-center gap-4">
+                <Link
+                  href={`/${locale}/checkout`}
+                  className="text-sm text-muted-foreground hover:text-foreground"
+                >
+                  {headerCopy[locale].checkout}
+                </Link>
                 <Link
                   href={`/${locale}/account`}
                   className="text-sm text-muted-foreground hover:text-foreground"

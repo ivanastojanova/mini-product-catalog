@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
@@ -19,6 +20,7 @@ const copy: Record<
   {
     name: string;
     email: string;
+    orders: string;
     logout: string;
     loggingOut: string;
   }
@@ -26,12 +28,14 @@ const copy: Record<
   en: {
     name: "Name",
     email: "Email",
+    orders: "Your orders",
     logout: "Log out",
     loggingOut: "Logging out…",
   },
   de: {
     name: "Name",
     email: "E-Mail",
+    orders: "Deine Bestellungen",
     logout: "Abmelden",
     loggingOut: "Wird abgemeldet…",
   },
@@ -77,6 +81,12 @@ export function AccountView({ locale }: AccountViewProps) {
           <dd className="text-foreground">{customer.email}</dd>
         </div>
       </dl>
+      <Link
+        href={localizedPath(locale, "/account/orders")}
+        className="w-fit text-sm text-foreground underline-offset-4 hover:underline"
+      >
+        {labels.orders}
+      </Link>
       <Button
         type="button"
         variant="outline"

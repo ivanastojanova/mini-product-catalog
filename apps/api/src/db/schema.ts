@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   check,
+  index,
   integer,
   primaryKey,
   sqliteTable,
@@ -65,6 +66,130 @@ export const carts = sqliteTable(
       "carts_exactly_one_owner",
       sql`(${table.customerId} IS NULL) <> (${table.guestTokenHash} IS NULL)`,
     ),
+  ],
+);
+
+/** Order statuses allowed by the CHECK constraint. Duplicated from `orders/lib/orderStateMachine.ts` for the same drizzle-kit import reason as above; `schema.test.ts` fails if the two lists diverge. */
+export const ORDER_STATUS_VALUES = [
+  "pending_payment",
+  "paid",
+  "fulfilled",
+  "cancelled",
+  "expired",
+] as const;
+
+const statusList = ORDER_STATUS_VALUES.map((status) => `'${status}'`).join(", ");
+
+/**
+ * Sellable stock per product slug. available = on_hand - reserved. The CHECKs
+ * make overselling impossible even if application code is wrong.
+ */
+export const inventory = sqliteTable(
+  "inventory",
+  {
+    productSlug: text("product_slug").primaryKey(),
+    onHand: integer("on_hand").notNull(),
+    reserved: integer("reserved").notNull().default(0),
+    updatedAt: integer("updated_at", { mode: "timestamp" })
+      .notNull()
+      .default(sql`(unixepoch())`),
+  },
+  (table) => [
+    check("inventory_on_hand_non_negative", sql`${table.onHand} >= 0`),
+    check("inventory_reserved_non_negative", sql`${table.reserved} >= 0`),
+    check("inventory_reserved_within_on_hand", sql`${table.reserved} <= ${table.onHand}`),
+  ],
+);
+
+/**
+ * A placed order. Owned by exactly one of a customer or a guest browser
+ * (`guestTokenHash`, SHA-256 of the `order_token` cookie). `publicId` is only a
+ * lookup key in URLs, never a credential. Price and address are snapshots.
+ * `status` is written only by `applyTransition`.
+ */
+export const orders = sqliteTable(
+  "orders",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    publicId: text("public_id").notNull().unique(),
+    // No cascade: deleting a customer must not silently delete order history.
+    customerId: integer("customer_id").references(() => customers.id),
+    guestTokenHash: text("guest_token_hash"),
+    contactEmail: text("contact_email").notNull(),
+    status: text("status").notNull().default("pending_payment"),
+    currency: text("currency").notNull(),
+    totalCents: integer("total_cents").notNull(),
+    shipName: text("ship_name").notNull(),
+    shipLine1: text("ship_line1").notNull(),
+    shipLine2: text("ship_line2"),
+    shipCity: text("ship_city").notNull(),
+    shipPostalCode: text("ship_postal_code").notNull(),
+    shipCountry: text("ship_country").notNull(),
+    idempotencyKey: text("idempotency_key").notNull().unique(),
+    reservationExpiresAt: integer("reservation_expires_at", { mode: "timestamp" }).notNull(),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .notNull()
+      .default(sql`(unixepoch())`),
+    updatedAt: integer("updated_at", { mode: "timestamp" })
+      .notNull()
+      .default(sql`(unixepoch())`),
+    paidAt: integer("paid_at", { mode: "timestamp" }),
+  },
+  (table) => [
+    check("orders_exactly_one_owner", sql`(${table.customerId} IS NULL) <> (${table.guestTokenHash} IS NULL)`),
+    check("orders_status_valid", sql.raw(`"status" IN (${statusList})`)),
+    check("orders_total_non_negative", sql`${table.totalCents} >= 0`),
+    index("orders_customer_id_idx").on(table.customerId),
+    index("orders_guest_token_hash_idx").on(table.guestTokenHash),
+    // Serves the lazy expiry sweep: pending orders past their deadline.
+    index("orders_status_expiry_idx").on(table.status, table.reservationExpiresAt),
+  ],
+);
+
+/** Order lines. The price snapshot lives here; the quantities are also what a reservation holds. */
+export const orderItems = sqliteTable(
+  "order_items",
+  {
+    orderId: integer("order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "cascade" }),
+    productSlug: text("product_slug").notNull(),
+    title: text("title").notNull(),
+    unitPriceCents: integer("unit_price_cents").notNull(),
+    quantity: integer("quantity").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.orderId, table.productSlug] }),
+    check("order_items_unit_price_non_negative", sql`${table.unitPriceCents} >= 0`),
+    check(
+      "order_items_quantity_range",
+      sql.raw(`"quantity" BETWEEN 1 AND ${MAX_LINE_QUANTITY}`),
+    ),
+  ],
+);
+
+/** Append-only audit trail: one row at creation (`fromStatus` null) and one per transition. */
+export const orderEvents = sqliteTable(
+  "order_events",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    orderId: integer("order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "cascade" }),
+    fromStatus: text("from_status"),
+    toStatus: text("to_status").notNull(),
+    reason: text("reason"),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .notNull()
+      .default(sql`(unixepoch())`),
+  },
+  (table) => [
+    check(
+      "order_events_from_status_valid",
+      sql.raw(`"from_status" IS NULL OR "from_status" IN (${statusList})`),
+    ),
+    check("order_events_to_status_valid", sql.raw(`"to_status" IN (${statusList})`)),
+    index("order_events_order_id_idx").on(table.orderId),
   ],
 );
 

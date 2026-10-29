@@ -7,8 +7,13 @@ import { isLocale } from "@/shared/i18n/locales";
  */
 export const SESSION_COOKIE_NAME = "session";
 
-/** First path segment after the locale that requires a logged-in customer. */
-const PROTECTED_SEGMENTS = ["account", "checkout"];
+/**
+ * First path segment after the locale that requires a logged-in customer.
+ * `checkout` and `orders` are deliberately absent: guests can check out and
+ * view their order via the order_token cookie (docs/adr/0008, partly
+ * reversing 0005). apps/api decides who may see which order, not this proxy.
+ */
+const PROTECTED_SEGMENTS = ["account"];
 
 /**
  * Decides whether a request must be redirected to the login page, returning
