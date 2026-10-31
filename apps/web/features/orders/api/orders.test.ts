@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { cancelOrder, getOrder, listOrders, simulatePayment } from "./orders";
+import { cancelOrder, getOrder, listOrders, startPayment } from "./orders";
 
 const fetchMock = vi.fn();
 
@@ -89,23 +89,52 @@ describe("orders API wrappers", () => {
     });
   });
 
-  describe("simulatePayment", () => {
-    it("POSTs bodiless to the dev route", async () => {
-      fetchMock.mockResolvedValue(jsonResponse({ order: { ...order, status: "paid" } }));
+  describe("startPayment", () => {
+    it("POSTs bodiless to the order's pay route with the locale, and returns the pay URL", async () => {
+      fetchMock.mockResolvedValue(jsonResponse({ payUrl: "http://localhost:4100/pay/pi_abc" }));
 
-      const result = await simulatePayment("abc");
+      const result = await startPayment("a/b c", "de");
 
       const { url, init } = lastCall();
-      expect(url).toBe("http://localhost:4000/dev/orders/abc/simulate-payment");
+      expect(url).toBe("http://localhost:4000/orders/a%2Fb%20c/pay?lang=de");
       expect(init.method).toBe("POST");
+      expect(init.credentials).toBe("include");
       expect(init.body).toBeUndefined();
       expect(init.headers).toBeUndefined();
-      expect(result.status).toBe("paid");
+      expect(result).toEqual({ payUrl: "http://localhost:4100/pay/pi_abc" });
+    });
+
+    it("sends no amount or other payment data: the server reads them from the order", async () => {
+      fetchMock.mockResolvedValue(jsonResponse({ payUrl: "https://pay.example.com/pay/pi_abc" }));
+      await startPayment("abc", "en");
+      expect(lastCall().url).not.toMatch(/amount|currency/i);
     });
 
     it("surfaces the server's message when the order can't be paid", async () => {
       fetchMock.mockResolvedValue(jsonResponse({ message: "An order that is expired can't be paid." }, 409));
-      await expect(simulatePayment("abc")).rejects.toThrow("expired can't be paid");
+      await expect(startPayment("abc", "en")).rejects.toThrow("expired can't be paid");
+    });
+
+    it("surfaces the gateway-unavailable message from a 502", async () => {
+      fetchMock.mockResolvedValue(jsonResponse({ message: "The payment service is unavailable. Please try again." }, 502));
+      await expect(startPayment("abc", "en")).rejects.toThrow("unavailable");
+    });
+
+    it("falls back to a generic message when the error has no body", async () => {
+      fetchMock.mockResolvedValue(new Response("", { status: 500 }));
+      await expect(startPayment("abc", "en")).rejects.toThrow("Could not start your payment.");
+    });
+
+    it.each([
+      ["missing", {}],
+      ["not a string", { payUrl: 5 }],
+      ["a javascript: URL", { payUrl: "javascript:alert(1)" }],
+      ["a data: URL", { payUrl: "data:text/html,hi" }],
+      ["a relative path", { payUrl: "/pay/pi_abc" }],
+      ["not a URL", { payUrl: "nope" }],
+    ])("refuses to navigate when payUrl is %s", async (_label, body) => {
+      fetchMock.mockResolvedValue(jsonResponse(body));
+      await expect(startPayment("abc", "en")).rejects.toThrow("Could not start your payment.");
     });
   });
 });

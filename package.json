@@ -6,13 +6,14 @@
     "apps/*"
   ],
   "scripts": {
-    "dev": "npm run dev --workspace=apps/cms & npm run dev --workspace=apps/api & npm run dev --workspace=apps/web & wait",
+    "dev": "npm run dev --workspace=apps/cms & npm run dev --workspace=apps/api & npm run dev --workspace=apps/gateway & npm run dev --workspace=apps/web & wait",
     "dev:cms": "npm run dev --workspace=apps/cms",
     "dev:web": "npm run dev --workspace=apps/web",
     "dev:api": "npm run dev --workspace=apps/api",
-    "build": "npm run build --workspace=apps/cms && npm run build --workspace=apps/api && npm run build --workspace=apps/web",
-    "lint": "npm run lint --workspace=apps/cms && npm run lint --workspace=apps/api && npm run lint --workspace=apps/web",
-    "test": "npm run test --workspace=apps/api && npm run test --workspace=apps/web",
+    "dev:gateway": "npm run dev --workspace=apps/gateway",
+    "build": "npm run build --workspace=apps/cms && npm run build --workspace=apps/api && npm run build --workspace=apps/gateway && npm run build --workspace=apps/web",
+    "lint": "npm run lint --workspace=apps/cms && npm run lint --workspace=apps/api && npm run lint --workspace=apps/gateway && npm run lint --workspace=apps/web",
+    "test": "npm run test --workspace=apps/api && npm run test --workspace=apps/gateway && npm run test --workspace=apps/web",
     "seed": "npm run seed --workspace=apps/cms"
   }
 }

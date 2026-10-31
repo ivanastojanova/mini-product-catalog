@@ -12,7 +12,14 @@ import { registerStockRoutes } from "./inventory/routes/stock.js";
 import { registerCheckoutRoutes } from "./orders/routes/checkoutPreview.js";
 import { registerCreateOrderRoute } from "./orders/routes/createOrder.js";
 import { registerOrderRoutes } from "./orders/routes/orders.js";
-import { registerSimulatePaymentRoute } from "./dev/routes/simulatePayment.js";
+import { db } from "./db/client.js";
+import { assertPaymentSecrets } from "./payments/lib/assertPaymentSecrets.js";
+import { createHttpPaymentGateway } from "./payments/lib/gatewayClient.js";
+import { createEventProcessor } from "./payments/lib/processPaymentEvent.js";
+import { registerPayOrderRoute } from "./payments/routes/payOrder.js";
+import { registerPaymentWebhookRoute } from "./payments/routes/webhook.js";
+
+assertPaymentSecrets();
 
 const PORT = Number(process.env.PORT ?? 4000);
 
@@ -33,7 +40,12 @@ registerStockRoutes(app);
 registerCheckoutRoutes(app);
 registerCreateOrderRoute(app);
 registerOrderRoutes(app);
-registerSimulatePaymentRoute(app);
+
+const paymentGateway = createHttpPaymentGateway();
+registerPayOrderRoute(app, { gateway: paymentGateway });
+registerPaymentWebhookRoute(app, {
+  processEvent: createEventProcessor(db, paymentGateway),
+});
 
 app
   .listen({ port: PORT })

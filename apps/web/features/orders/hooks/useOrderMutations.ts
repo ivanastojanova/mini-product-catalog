@@ -2,7 +2,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { cancelOrder, simulatePayment } from "@/features/orders/api/orders";
+import { cancelOrder, startPayment } from "@/features/orders/api/orders";
 import { orderKeys } from "@/features/orders/queries/orderKeys";
 import type { Order } from "@/features/orders/types/order";
 import { productKeys } from "@/features/products/queries/productKeys";
@@ -35,7 +35,23 @@ export function useCancelOrder() {
   return useOrderMutation(cancelOrder);
 }
 
-/** Dev-only payment. Phase 5 replaces this with the real payment flow. */
-export function useSimulatePayment() {
-  return useOrderMutation(simulatePayment);
+/**
+ * Starts a payment and sends the browser to the gateway's hosted page. Success
+ * leaves the app, so the mutation stays in its `isSuccess` state (callers keep
+ * the button disabled) instead of re-enabling it during the navigation. On
+ * failure the order is re-read, because the usual cause is that it just
+ * expired or was paid.
+ */
+export function useStartPayment(locale: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (publicId: string) => startPayment(publicId, locale),
+    onSuccess: ({ payUrl }) => {
+      window.location.assign(payUrl);
+    },
+    onError: (_error, publicId) => {
+      void queryClient.invalidateQueries({ queryKey: orderKeys.detail(publicId) });
+    },
+  });
 }

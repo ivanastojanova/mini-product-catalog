@@ -46,16 +46,35 @@ export async function cancelOrder(publicId: string): Promise<Order> {
   return ((await response.json()) as OrderResponse).order;
 }
 
-/** Dev-only stand-in for a payment webhook (apps/api has no such route in production). Phase 5 replaces it. */
-export async function simulatePayment(publicId: string): Promise<Order> {
+/**
+ * Starts (or resumes) a payment and returns the gateway's hosted page to send
+ * the browser to. The order's amount is never sent: apps/api reads it from the
+ * order. `locale` only decides which language page the shopper returns to.
+ * The URL is checked before anything navigates to it.
+ */
+export async function startPayment(publicId: string, locale: string): Promise<{ payUrl: string }> {
   const response = await apiFetch(
-    `/dev/orders/${encodeURIComponent(publicId)}/simulate-payment`,
+    `/orders/${encodeURIComponent(publicId)}/pay?lang=${encodeURIComponent(locale)}`,
     { method: "POST" },
   );
 
   if (!response.ok) {
-    throw new Error(await extractErrorMessage(response, "Could not pay for your order."));
+    throw new Error(await extractErrorMessage(response, "Could not start your payment."));
   }
 
-  return ((await response.json()) as OrderResponse).order;
+  const { payUrl } = (await response.json()) as { payUrl?: unknown };
+  if (typeof payUrl !== "string" || !isHttpUrl(payUrl)) {
+    throw new Error("Could not start your payment.");
+  }
+
+  return { payUrl };
+}
+
+function isHttpUrl(value: string): boolean {
+  try {
+    const { protocol } = new URL(value);
+    return protocol === "http:" || protocol === "https:";
+  } catch {
+    return false;
+  }
 }

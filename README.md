@@ -10,9 +10,12 @@ Started as a take-home: a localized (**en** / **de**) product catalog built with
 apps/
   cms/   Payload CMS — catalog content only (Products, Media, admin auth).
          SQLite, own payload.db. Serves REST/GraphQL on :3001.
-  web/   Storefront + BFF — commerce domain lives here (customers, cart,
-         orders, payments). Talks to apps/cms over real HTTP, never the
+  web/   Storefront. Talks to apps/cms and apps/api over real HTTP, never the
          Payload Local API. Serves on :3000.
+  api/   Commerce API (customers, cart, orders, payments, webhook receiver).
+         Fastify + SQLite (commerce.db). Serves on :4000.
+  gateway/  Mock payment provider (Stripe-style): hosted pay page, signed
+         webhooks, refunds. Fastify + plain SQL (gateway.db). Serves on :4100.
 docs/adr/   One Markdown file per significant architectural decision.
 ```
 
@@ -30,16 +33,20 @@ This split (two separate Next.js apps, two separate processes, two separate data
 
 ```bash
 npm install                 # installs both workspaces
-npm run dev                 # starts apps/cms (:3001) and apps/web (:3000)
+npm run dev                 # starts apps/cms (:3001), apps/api (:4000), apps/gateway (:4100), apps/web (:3000)
 npm run seed                # optional — seeds ~9 EN/DE furniture products + media
 ```
 
 Or run each app independently (useful when working on just one side):
 
 ```bash
-npm run dev:cms   # http://localhost:3001
-npm run dev:web   # http://localhost:3000
+npm run dev:cms      # http://localhost:3001
+npm run dev:api      # http://localhost:4000
+npm run dev:gateway  # http://localhost:4100
+npm run dev:web      # http://localhost:3000
 ```
+
+Paying for an order needs all four running. Copy each app's `.env.example` to `.env` first (`apps/api` and `apps/gateway` need the **same** `GATEWAY_API_KEY` and `GATEWAY_WEBHOOK_SECRET`; generate them with `openssl rand -hex 32`).
 
 | What | URL |
 |------|-----|
@@ -64,6 +71,36 @@ npm run dev:web   # http://localhost:3000
 |----------|---------|
 | `CMS_API_URL` | apps/cms base URL — apps/web fetches products from here |
 | `REVALIDATE_SECRET` | Auth for `POST /api/revalidate` (must match apps/cms) |
+| `NEXT_PUBLIC_API_URL` | apps/api base URL (the browser calls it directly) |
+
+**`apps/api/.env`** (payment-related; see `.env.example` for the rest)
+
+| Variable | Purpose |
+|----------|---------|
+| `GATEWAY_URL` | Where apps/api calls the gateway (server to server) |
+| `GATEWAY_PUBLIC_URL` | Where the **browser** reaches the gateway's pay page |
+| `GATEWAY_API_KEY` | Bearer key for the gateway's `/v1/*` API (must match apps/gateway) |
+| `GATEWAY_WEBHOOK_SECRET` | HMAC key that signs webhooks (must match apps/gateway) |
+
+**`apps/gateway/.env`**
+
+| Variable | Purpose |
+|----------|---------|
+| `PORT`, `DATABASE_URL` | Listen port (4100) and SQLite file (`file:./gateway.db`) |
+| `GATEWAY_API_KEY`, `GATEWAY_WEBHOOK_SECRET` | Same values as apps/api |
+| `WEBHOOK_URL` | Where signed events are POSTed (apps/api's `/webhooks/payments`) |
+| `ALLOWED_RETURN_ORIGIN` | The only origin a payment may send the shopper back to (apps/web) |
+| `GATEWAY_PUBLIC_URL` | Base of the pay page links |
+
+Both apps refuse to start in `NODE_ENV=production` if these secrets are missing or still the `replace-me…` placeholders. The gateway refuses to start without them in any environment.
+
+### Trying a payment
+
+1. Add something to the cart and check out; you land on the order page.
+2. **Pay now** goes to the gateway's mock page. Choose **Pay**, **Pay (webhook delivered twice)** (same event sent two times; the order is still paid once) or **Decline card** (you return to the order, which stays open so you can try again).
+3. To see a late payment: press **Pay now**, **cancel the order in another tab**, then press **Pay** on the gateway page. The order stays cancelled and the payment is refunded.
+
+The order only becomes `paid` when apps/api receives the gateway's signed webhook; returning from the gateway page changes nothing by itself. See [ADR 0009](docs/adr/0009-separate-mock-payment-gateway.md) and [ADR 0010](docs/adr/0010-webhook-as-only-source-of-payment-truth.md).
 
 Products can also be added by hand in `/admin` — the seed script is convenience, not required.
 
@@ -217,22 +254,24 @@ On a PDP, **Add to cart** updates **"N in cart"** immediately, then `POST /cart/
 
 ## Testing
 
-Vitest lives in `apps/api` and `apps/web`.
+Vitest lives in `apps/api`, `apps/gateway` and `apps/web`.
 
 ```bash
-npm run test                        # from root — runs apps/api's suite, then apps/web's
+npm run test                        # from root — runs apps/api's suite, then apps/gateway's, then apps/web's
 npm run test --workspace=apps/api   # one app, explicit
 npm run test:watch --workspace=apps/web
 ```
 
 Current coverage: apps/api has Vitest suites for auth (hashing, session tokens, register/login/logout/session routes) and the cart (resolution, routes, guest→customer merge); apps/web covers the cart client (API wrappers, optimistic add + rollback) and route protection. Also `/api/revalidate` auth accept/reject + tag selection on rename (`apps/web/app/api/revalidate/route.test.ts`) — the highest-value test from the original take-home's testing plan, now also covering the webhook path end-to-end.
 
+Payments (Phase 5): webhook signature verification (including a fixed test vector asserted in both apps/api and apps/gateway), insert-first idempotency, late-payment and wrong-amount refunds, the order state machine, starting a payment (reuse, retry after decline, gateway down), and the gateway itself (API key, return-URL allow-list, idempotency keys, settling an intent once, signed delivery, refunds, the pay page). Security-relevant tests were mutation-checked.
+
 Planned, in priority order as each phase lands (see [AGENTS.md](AGENTS.md) "Testing"):
 
 1. Auth: password hashing, JWT sign/verify/expiry, refresh-token rotation
 2. ~~Cart: guest↔user merge, quantity edge cases~~ — done in Phase 3
 3. Orders: total calculation, state transitions, authorization (owner-or-admin)
-4. Payments: webhook signature verification, idempotency/replay safety
+4. ~~Payments: webhook signature verification, idempotency/replay safety~~ — done in Phase 5
 
 Money-critical and security-critical logic ships with tests in the same change, not retrofitted later.
 
@@ -249,7 +288,7 @@ This project is being extended in phases. See [`docs/PLAN.md`](docs/PLAN.md) for
 | 2 | Customers & auth (session cookies, not JWT — see [ADR 0003](docs/adr/0003-session-cookie-auth.md)) | ✅ Done |
 | 3 | Persistent cart (guest cookie + customer cart, merged on login — see [ADR 0006](docs/adr/0006-cookie-guest-cart-merged-on-login.md)) | ✅ Done |
 | 4 | Checkout & orders (state machine, stock reservation — see [ADR 0007](docs/adr/0007-inventory-and-lazy-reservation-expiry.md), [ADR 0008](docs/adr/0008-cookie-bound-guest-orders.md)) | ✅ Done |
-| 5 | Mock payment gateway (async, Stripe-style webhook + idempotency) | Planned |
+| 5 | Mock payment gateway (async, Stripe-style webhook + idempotency — see [ADR 0009](docs/adr/0009-separate-mock-payment-gateway.md), [ADR 0010](docs/adr/0010-webhook-as-only-source-of-payment-truth.md)) | ✅ Done |
 | 6 | Frontend e-commerce polish (filtering, mini-cart, order confirmation) | Planned |
 | 7 | CI (lint/typecheck/test on PR) | Planned |
 

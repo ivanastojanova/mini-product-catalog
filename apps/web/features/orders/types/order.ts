@@ -22,6 +22,9 @@ export type OrderLine = {
   lineTotalCents: number;
 };
 
+/** The shopper-visible state of the latest payment attempt. No gateway ids reach the browser. */
+export type PaymentStatus = "pending" | "failed" | "succeeded" | "refunding" | "refunded";
+
 /** Mirrors apps/api's order DTO. Money is integer cents; timestamps are ISO strings. */
 export type Order = {
   publicId: string;
@@ -34,4 +37,5 @@ export type Order = {
   reservationExpiresAt: string;
   createdAt: string;
   paidAt: string | null;
+  payment: { status: PaymentStatus } | null;
 };

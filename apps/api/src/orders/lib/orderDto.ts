@@ -2,7 +2,19 @@ import { eq, sql } from "drizzle-orm";
 
 import { orderItems, orders } from "../../db/schema.js";
 import type { DbHandle } from "../../inventory/lib/inventoryRepo.js";
+import { latestPaymentStatus } from "../../payments/lib/startPayment.js";
 import type { OrderStatus } from "./orderStateMachine.js";
+
+/** What the shopper may know about the latest payment attempt. No intent ids or gateway data. */
+export type PaymentDtoStatus = "pending" | "failed" | "succeeded" | "refunding" | "refunded";
+
+const PAYMENT_DTO_STATUS: Record<string, PaymentDtoStatus> = {
+  pending: "pending",
+  failed: "failed",
+  succeeded: "succeeded",
+  refund_pending: "refunding",
+  refunded: "refunded",
+};
 
 export type OrderDto = {
   publicId: string;
@@ -28,6 +40,8 @@ export type OrderDto = {
   reservationExpiresAt: string;
   createdAt: string;
   paidAt: string | null;
+  /** The most recent payment attempt, or null if none was ever started. */
+  payment: { status: PaymentDtoStatus } | null;
 };
 
 /**
@@ -47,6 +61,8 @@ export function getOrderDto(db: DbHandle, orderId: number): OrderDto {
     .where(eq(orderItems.orderId, orderId))
     .orderBy(sql`rowid`)
     .all();
+
+  const paymentStatus = latestPaymentStatus(db, orderId);
 
   return {
     publicId: order.publicId,
@@ -72,5 +88,9 @@ export function getOrderDto(db: DbHandle, orderId: number): OrderDto {
     reservationExpiresAt: order.reservationExpiresAt.toISOString(),
     createdAt: order.createdAt.toISOString(),
     paidAt: order.paidAt ? order.paidAt.toISOString() : null,
+    payment:
+      paymentStatus !== null && PAYMENT_DTO_STATUS[paymentStatus]
+        ? { status: PAYMENT_DTO_STATUS[paymentStatus] }
+        : null,
   };
 }
