@@ -1,0 +1,882 @@
+{
+  "version": "6",
+  "dialect": "sqlite",
+  "id": "656c7e6f-b0db-4ced-9036-5dfdac2f582c",
+  "prevId": "5e3d73f2-0820-41b0-832b-4354e66055e8",
+  "tables": {
+    "cart_items": {
+      "name": "cart_items",
+      "columns": {
+        "cart_id": {
+          "name": "cart_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "product_slug": {
+          "name": "product_slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quantity": {
+          "name": "quantity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "added_at": {
+          "name": "added_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "cart_items_cart_id_carts_id_fk": {
+          "name": "cart_items_cart_id_carts_id_fk",
+          "tableFrom": "cart_items",
+          "tableTo": "carts",
+          "columnsFrom": [
+            "cart_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "cart_items_cart_id_product_slug_pk": {
+          "columns": [
+            "cart_id",
+            "product_slug"
+          ],
+          "name": "cart_items_cart_id_product_slug_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "cart_items_quantity_range": {
+          "name": "cart_items_quantity_range",
+          "value": "\"quantity\" BETWEEN 1 AND 10"
+        }
+      }
+    },
+    "carts": {
+      "name": "carts",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "customer_id": {
+          "name": "customer_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "guest_token_hash": {
+          "name": "guest_token_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        }
+      },
+      "indexes": {
+        "carts_customer_id_unique": {
+          "name": "carts_customer_id_unique",
+          "columns": [
+            "customer_id"
+          ],
+          "isUnique": true
+        },
+        "carts_guest_token_hash_unique": {
+          "name": "carts_guest_token_hash_unique",
+          "columns": [
+            "guest_token_hash"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "carts_customer_id_customers_id_fk": {
+          "name": "carts_customer_id_customers_id_fk",
+          "tableFrom": "carts",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customer_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "carts_exactly_one_owner": {
+          "name": "carts_exactly_one_owner",
+          "value": "(\"carts\".\"customer_id\" IS NULL) <> (\"carts\".\"guest_token_hash\" IS NULL)"
+        }
+      }
+    },
+    "customers": {
+      "name": "customers",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "password_hash": {
+          "name": "password_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        }
+      },
+      "indexes": {
+        "customers_email_unique": {
+          "name": "customers_email_unique",
+          "columns": [
+            "email"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "inventory": {
+      "name": "inventory",
+      "columns": {
+        "product_slug": {
+          "name": "product_slug",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "on_hand": {
+          "name": "on_hand",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "reserved": {
+          "name": "reserved",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "inventory_on_hand_non_negative": {
+          "name": "inventory_on_hand_non_negative",
+          "value": "\"inventory\".\"on_hand\" >= 0"
+        },
+        "inventory_reserved_non_negative": {
+          "name": "inventory_reserved_non_negative",
+          "value": "\"inventory\".\"reserved\" >= 0"
+        },
+        "inventory_reserved_within_on_hand": {
+          "name": "inventory_reserved_within_on_hand",
+          "value": "\"inventory\".\"reserved\" <= \"inventory\".\"on_hand\""
+        }
+      }
+    },
+    "order_events": {
+      "name": "order_events",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "order_id": {
+          "name": "order_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "from_status": {
+          "name": "from_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "to_status": {
+          "name": "to_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        }
+      },
+      "indexes": {
+        "order_events_order_id_idx": {
+          "name": "order_events_order_id_idx",
+          "columns": [
+            "order_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "order_events_order_id_orders_id_fk": {
+          "name": "order_events_order_id_orders_id_fk",
+          "tableFrom": "order_events",
+          "tableTo": "orders",
+          "columnsFrom": [
+            "order_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "order_events_from_status_valid": {
+          "name": "order_events_from_status_valid",
+          "value": "\"from_status\" IS NULL OR \"from_status\" IN ('pending_payment', 'paid', 'fulfilled', 'cancelled', 'expired')"
+        },
+        "order_events_to_status_valid": {
+          "name": "order_events_to_status_valid",
+          "value": "\"to_status\" IN ('pending_payment', 'paid', 'fulfilled', 'cancelled', 'expired')"
+        }
+      }
+    },
+    "order_items": {
+      "name": "order_items",
+      "columns": {
+        "order_id": {
+          "name": "order_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "product_slug": {
+          "name": "product_slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "unit_price_cents": {
+          "name": "unit_price_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quantity": {
+          "name": "quantity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "order_items_order_id_orders_id_fk": {
+          "name": "order_items_order_id_orders_id_fk",
+          "tableFrom": "order_items",
+          "tableTo": "orders",
+          "columnsFrom": [
+            "order_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "order_items_order_id_product_slug_pk": {
+          "columns": [
+            "order_id",
+            "product_slug"
+          ],
+          "name": "order_items_order_id_product_slug_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "order_items_unit_price_non_negative": {
+          "name": "order_items_unit_price_non_negative",
+          "value": "\"order_items\".\"unit_price_cents\" >= 0"
+        },
+        "order_items_quantity_range": {
+          "name": "order_items_quantity_range",
+          "value": "\"quantity\" BETWEEN 1 AND 10"
+        }
+      }
+    },
+    "orders": {
+      "name": "orders",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "public_id": {
+          "name": "public_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "customer_id": {
+          "name": "customer_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "guest_token_hash": {
+          "name": "guest_token_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "contact_email": {
+          "name": "contact_email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'pending_payment'"
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "total_cents": {
+          "name": "total_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "ship_name": {
+          "name": "ship_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "ship_line1": {
+          "name": "ship_line1",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "ship_line2": {
+          "name": "ship_line2",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "ship_city": {
+          "name": "ship_city",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "ship_postal_code": {
+          "name": "ship_postal_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "ship_country": {
+          "name": "ship_country",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "reservation_expires_at": {
+          "name": "reservation_expires_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        },
+        "paid_at": {
+          "name": "paid_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "orders_public_id_unique": {
+          "name": "orders_public_id_unique",
+          "columns": [
+            "public_id"
+          ],
+          "isUnique": true
+        },
+        "orders_idempotency_key_unique": {
+          "name": "orders_idempotency_key_unique",
+          "columns": [
+            "idempotency_key"
+          ],
+          "isUnique": true
+        },
+        "orders_customer_id_idx": {
+          "name": "orders_customer_id_idx",
+          "columns": [
+            "customer_id"
+          ],
+          "isUnique": false
+        },
+        "orders_guest_token_hash_idx": {
+          "name": "orders_guest_token_hash_idx",
+          "columns": [
+            "guest_token_hash"
+          ],
+          "isUnique": false
+        },
+        "orders_status_expiry_idx": {
+          "name": "orders_status_expiry_idx",
+          "columns": [
+            "status",
+            "reservation_expires_at"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "orders_customer_id_customers_id_fk": {
+          "name": "orders_customer_id_customers_id_fk",
+          "tableFrom": "orders",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customer_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "orders_exactly_one_owner": {
+          "name": "orders_exactly_one_owner",
+          "value": "(\"orders\".\"customer_id\" IS NULL) <> (\"orders\".\"guest_token_hash\" IS NULL)"
+        },
+        "orders_status_valid": {
+          "name": "orders_status_valid",
+          "value": "\"status\" IN ('pending_payment', 'paid', 'fulfilled', 'cancelled', 'expired')"
+        },
+        "orders_total_non_negative": {
+          "name": "orders_total_non_negative",
+          "value": "\"orders\".\"total_cents\" >= 0"
+        }
+      }
+    },
+    "payment_events": {
+      "name": "payment_events",
+      "columns": {
+        "gateway_event_id": {
+          "name": "gateway_event_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "payload": {
+          "name": "payload",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "received_at": {
+          "name": "received_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "payment_events_outcome_valid": {
+          "name": "payment_events_outcome_valid",
+          "value": "\"outcome\" IN ('applied', 'duplicate', 'ignored', 'refund_requested')"
+        }
+      }
+    },
+    "payments": {
+      "name": "payments",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "order_id": {
+          "name": "order_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "gateway_intent_id": {
+          "name": "gateway_intent_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "amount_cents": {
+          "name": "amount_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'pending'"
+        },
+        "refund_id": {
+          "name": "refund_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        }
+      },
+      "indexes": {
+        "payments_gateway_intent_id_unique": {
+          "name": "payments_gateway_intent_id_unique",
+          "columns": [
+            "gateway_intent_id"
+          ],
+          "isUnique": true
+        },
+        "payments_order_id_idx": {
+          "name": "payments_order_id_idx",
+          "columns": [
+            "order_id"
+          ],
+          "isUnique": false
+        },
+        "payments_one_pending_per_order": {
+          "name": "payments_one_pending_per_order",
+          "columns": [
+            "order_id"
+          ],
+          "isUnique": true,
+          "where": "\"payments\".\"status\" = 'pending'"
+        }
+      },
+      "foreignKeys": {
+        "payments_order_id_orders_id_fk": {
+          "name": "payments_order_id_orders_id_fk",
+          "tableFrom": "payments",
+          "tableTo": "orders",
+          "columnsFrom": [
+            "order_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "payments_amount_positive": {
+          "name": "payments_amount_positive",
+          "value": "\"payments\".\"amount_cents\" > 0"
+        },
+        "payments_status_valid": {
+          "name": "payments_status_valid",
+          "value": "\"status\" IN ('pending', 'succeeded', 'failed', 'refund_pending', 'refunded')"
+        }
+      }
+    },
+    "sessions": {
+      "name": "sessions",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "customer_id": {
+          "name": "customer_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        },
+        "user_agent": {
+          "name": "user_agent",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "ip_address": {
+          "name": "ip_address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "sessions_customer_id_customers_id_fk": {
+          "name": "sessions_customer_id_customers_id_fk",
+          "tableFrom": "sessions",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customer_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    }
+  },
+  "views": {},
+  "enums": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "indexes": {}
+  }
+}

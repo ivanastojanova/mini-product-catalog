@@ -6,13 +6,10 @@ import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  useCancelOrder,
-  useSimulatePayment,
-} from "@/features/orders/hooks/useOrderMutations";
+import { useCancelOrder, useStartPayment } from "@/features/orders/hooks/useOrderMutations";
 import { useOrder } from "@/features/orders/hooks/useOrder";
 import { formatCountdown, secondsUntil } from "@/features/orders/lib/countdown";
-import type { OrderStatus } from "@/features/orders/types/order";
+import type { Order, OrderStatus } from "@/features/orders/types/order";
 import { formatMoney } from "@/features/products/lib/formatters";
 import type { Locale } from "@/shared/i18n/locales";
 import { localizedPath } from "@/shared/i18n/routing";
@@ -27,6 +24,12 @@ const copy: Record<
   {
     status: Record<OrderStatus, string>;
     statusNote: Record<OrderStatus, string>;
+    paymentNote: {
+      processing: string;
+      declined: string;
+      refunding: string;
+      refunded: string;
+    };
     holdLeft: (time: string) => string;
     items: string;
     quantity: (n: number) => string;
@@ -36,8 +39,9 @@ const copy: Record<
     cancel: string;
     cancelling: string;
     pay: string;
+    payAgain: string;
     paying: string;
-    devNote: string;
+    testNote: string;
     notFoundTitle: string;
     notFoundBody: string;
     loadError: string;
@@ -62,6 +66,12 @@ const copy: Record<
       expired:
         "The reservation ran out before payment, so the items were released. Add them to your cart again to order.",
     },
+    paymentNote: {
+      processing: "We're confirming your payment. This page updates by itself.",
+      declined: "Your payment was declined. You can try again while your items are reserved.",
+      refunding: "Your payment arrived after the order closed. We're refunding it.",
+      refunded: "Your payment arrived after the order closed, so it was refunded in full.",
+    },
     holdLeft: (time) => `Reserved for ${time}`,
     items: "Items",
     quantity: (n) => `Qty ${n}`,
@@ -70,9 +80,10 @@ const copy: Record<
     contact: "Contact",
     cancel: "Cancel order",
     cancelling: "Cancelling…",
-    pay: "Pay now (test)",
-    paying: "Paying…",
-    devNote: "Test mode: no real payment is taken.",
+    pay: "Pay now",
+    payAgain: "Try paying again",
+    paying: "Taking you to the payment page…",
+    testNote: "Test mode: you'll be sent to a mock payment page. No real payment is taken.",
     notFoundTitle: "Order not found",
     notFoundBody:
       "We couldn't find this order. If you placed it as a guest, open this link in the same browser you ordered from.",
@@ -97,6 +108,12 @@ const copy: Record<
       expired:
         "Die Reservierung ist vor der Zahlung abgelaufen, die Artikel wurden freigegeben. Lege sie erneut in den Warenkorb, um zu bestellen.",
     },
+    paymentNote: {
+      processing: "Wir bestätigen deine Zahlung. Diese Seite aktualisiert sich von selbst.",
+      declined: "Deine Zahlung wurde abgelehnt. Du kannst es erneut versuchen, solange deine Artikel reserviert sind.",
+      refunding: "Deine Zahlung kam an, nachdem die Bestellung geschlossen war. Wir erstatten sie dir.",
+      refunded: "Deine Zahlung kam an, nachdem die Bestellung geschlossen war, und wurde vollständig erstattet.",
+    },
     holdLeft: (time) => `Reserviert für ${time}`,
     items: "Artikel",
     quantity: (n) => `Menge ${n}`,
@@ -105,9 +122,10 @@ const copy: Record<
     contact: "Kontakt",
     cancel: "Bestellung stornieren",
     cancelling: "Wird storniert…",
-    pay: "Jetzt bezahlen (Test)",
-    paying: "Zahlung läuft…",
-    devNote: "Testmodus: Es wird keine echte Zahlung durchgeführt.",
+    pay: "Jetzt bezahlen",
+    payAgain: "Erneut bezahlen",
+    paying: "Weiterleitung zur Zahlungsseite…",
+    testNote: "Testmodus: Du wirst zu einer Mock-Zahlungsseite weitergeleitet. Es wird keine echte Zahlung durchgeführt.",
     notFoundTitle: "Bestellung nicht gefunden",
     notFoundBody:
       "Wir konnten diese Bestellung nicht finden. Falls du als Gast bestellt hast, öffne diesen Link im selben Browser, mit dem du bestellt hast.",
@@ -125,6 +143,22 @@ const badgeVariant: Record<OrderStatus, "default" | "secondary" | "destructive" 
   cancelled: "secondary",
   expired: "destructive",
 };
+
+/** The extra line about the payment, if the latest attempt needs one. */
+function paymentNoteFor(order: Order, labels: (typeof copy)[Locale]): string | null {
+  switch (order.payment?.status) {
+    case "pending":
+      return order.status === "pending_payment" ? labels.paymentNote.processing : null;
+    case "failed":
+      return order.status === "pending_payment" ? labels.paymentNote.declined : null;
+    case "refunding":
+      return labels.paymentNote.refunding;
+    case "refunded":
+      return labels.paymentNote.refunded;
+    default:
+      return null;
+  }
+}
 
 /** Ticks once a second while `active`, returning the current time (null until mounted, so server and client render the same HTML). */
 function useNow(active: boolean): number | null {
@@ -151,7 +185,7 @@ export function OrderView({ locale, publicId }: OrderViewProps) {
   const labels = copy[locale];
   const { data: order, isPending, isError, refetch, isFetching } = useOrder(publicId);
   const cancel = useCancelOrder();
-  const pay = useSimulatePayment();
+  const pay = useStartPayment(locale);
   const now = useNow(order?.status === "pending_payment");
 
   const shopLink = (
@@ -199,8 +233,9 @@ export function OrderView({ locale, publicId }: OrderViewProps) {
   const isUnpaid = order.status === "pending_payment";
   const secondsLeft = now === null ? null : secondsUntil(order.reservationExpiresAt, now);
   const actionError = cancel.error ?? pay.error;
-  const busy = cancel.isPending || pay.isPending;
-  const showDevPay = process.env.NODE_ENV !== "production";
+  // Stays true after a successful start, while the browser leaves for the payment page.
+  const busy = cancel.isPending || pay.isPending || pay.isSuccess;
+  const paymentNote = paymentNoteFor(order, labels);
 
   return (
     <div className="flex flex-col gap-6">
@@ -214,6 +249,11 @@ export function OrderView({ locale, publicId }: OrderViewProps) {
           ) : null}
         </div>
         <p className="text-sm text-muted-foreground">{labels.statusNote[order.status]}</p>
+        {paymentNote ? (
+          <p className="text-sm text-foreground" role="status">
+            {paymentNote}
+          </p>
+        ) : null}
       </div>
 
       <section aria-label={labels.items}>
@@ -273,11 +313,13 @@ export function OrderView({ locale, publicId }: OrderViewProps) {
       {isUnpaid ? (
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap gap-3">
-            {showDevPay ? (
-              <Button type="button" disabled={busy} onClick={() => pay.mutate(order.publicId)}>
-                {pay.isPending ? labels.paying : labels.pay}
-              </Button>
-            ) : null}
+            <Button type="button" disabled={busy} onClick={() => pay.mutate(order.publicId)}>
+              {pay.isPending || pay.isSuccess
+                ? labels.paying
+                : order.payment?.status === "failed"
+                  ? labels.payAgain
+                  : labels.pay}
+            </Button>
             <Button
               type="button"
               variant="outline"
@@ -287,7 +329,7 @@ export function OrderView({ locale, publicId }: OrderViewProps) {
               {cancel.isPending ? labels.cancelling : labels.cancel}
             </Button>
           </div>
-          {showDevPay ? <p className="text-xs text-muted-foreground">{labels.devNote}</p> : null}
+          <p className="text-xs text-muted-foreground">{labels.testNote}</p>
           {actionError ? (
             <p className="text-sm text-destructive" role="alert">
               {actionError instanceof Error ? actionError.message : labels.actionError}

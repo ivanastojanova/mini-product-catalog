@@ -16,11 +16,15 @@ How the docs fit together:
 | 2 | Customers & auth (session cookies) | ✅ Done | [0002-auth.md](specs/0002-auth.md) | [0003](adr/0003-session-cookie-auth.md), [0004](adr/0004-standalone-commerce-api-service.md), [0005](adr/0005-cookie-presence-route-protection.md) |
 | 3 | Persistent cart (guest + logged-in, server-side) | ✅ Done | [0003-cart.md](specs/0003-cart.md) | [0006](adr/0006-cookie-guest-cart-merged-on-login.md) |
 | 4 | Checkout & orders (state machine, stock reservation) | ✅ Done | [0004-checkout.md](specs/0004-checkout.md) | [0007](adr/0007-inventory-and-lazy-reservation-expiry.md), [0008](adr/0008-cookie-bound-guest-orders.md) |
-| 5 | Mock payment gateway (async, Stripe-style webhook + idempotency) | Planned | — | — |
+| 5 | Mock payment gateway (async, Stripe-style webhook + idempotency) | ✅ Done | [0005-payments.md](specs/0005-payments.md) | [0009](adr/0009-separate-mock-payment-gateway.md), [0010](adr/0010-webhook-as-only-source-of-payment-truth.md) |
 | 6 | Frontend e-commerce polish (filtering, mini-cart, order confirmation) | Planned | — | — |
 | 7 | CI (lint/typecheck/test on PR) | Planned | — | — |
 
 ## Current session handoff
+
+**Where things stand:** Phase 5 is done, including the manual browser click-through. **Next up: Phase 6 (frontend e-commerce polish).** Phase 6 inherits the open TBDs listed under Phase 5 below, and the "Continue shopping on a pending order" item under *Future dev fixes*.
+
+Phases are logged below in order (2, 3, 4, 5). Each has its design in `docs/specs/` and its decisions in `docs/adr/`; this file only keeps the status.
 
 **Phase 2 — Customers & auth.** See [specs/0002-auth.md](specs/0002-auth.md) for the full design. Progress:
 
@@ -98,14 +102,38 @@ Things Phase 4 inherits from Phase 3:
 - `/checkout/*` is already behind the cookie-presence redirect (ADR 0005); apps/api must still verify the session itself on every order endpoint.
 - Merge atomicity relies on `better-sqlite3`'s synchronous transactions (ADR 0006).
 
+**Phase 5 — Mock payment gateway.** Done. Spec: [specs/0005-payments.md](specs/0005-payments.md). ADRs: [0009](adr/0009-separate-mock-payment-gateway.md) (separate gateway app), [0010](adr/0010-webhook-as-only-source-of-payment-truth.md) (webhook as the only source of truth). Progress:
+
+- [x] Scope settled with the user: separate `apps/gateway` (Fastify, :4100, own SQLite, **plain SQL** with numbered migrations; everything else shared with apps/api); hosted pay page on the gateway; scenarios = success, decline, duplicate delivery, late success after expiry/cancel; hand-rolled HMAC-SHA256 signatures (Stripe header format); a late success **does not resurrect** the order and is **refunded** through the gateway. Left out on purpose: webhook retries/backoff, delayed delivery, a bad-signature button in the gateway.
+- [x] apps/api: `payments` + `payment_events` tables (migration `0003`), `verifyWebhookSignature`, `POST /webhooks/payments` (raw-body verification, insert-first idempotency in one transaction), `applyPaymentEvent`, refunds after commit, `POST /orders/:publicId/pay`, order DTO `payment` field. The Phase 4 `simulate-payment` route is deleted.
+- [x] apps/gateway: config, API key on `/v1/*`, payment intents with idempotency keys and a return-URL allow-list (by parsed origin), settling, signed delivery, refunds, the hosted pay page.
+- [x] apps/web: real **Pay now** button, `startPayment`, polling (2 s while a payment is in flight), EN/DE notes for confirming, declined and refunded. The dev pay button and `simulatePayment` are deleted.
+- [x] Wiring: root `dev`/`build`/`lint`/`test` and `dev:gateway`; `.env.example` for api and gateway; both refuse placeholder secrets in production.
+- [x] Tests at the end: apps/api 528, apps/gateway 176, apps/web 96; typecheck and lint clean. Security-relevant code was mutation-checked (about 80 mutations across the phase, all caught).
+- [x] Live end-to-end run with real api and gateway processes on copies of the DB: success, delivered twice (paid once), decline then retry, late payment on a cancelled order (refunded, order and stock untouched), forged webhooks (400), old simulate route (404).
+- [x] Manual browser click-through of "Trying a payment" passed (user-tested). One UX finding, not a payment bug, is logged under *Future dev fixes*: "Continue shopping" on a pending order.
+- **Known gaps** (accepted; see the spec and ADR 0010): no webhook retries or reconcile job (a lost webhook leaves the order `pending_payment` until it expires; a failed refund stays `refund_pending`); no `refunded` order state; no rate limiting on the webhook or pay page; one signing secret with no rotation overlap; gateway idempotency records are never purged.
+
 Open TBDs carried forward: `sessions.ip_address` unpopulated, login rate limiting, expired session/guest-cart row cleanup, production `SameSite`/cookie scope across domains (ADR 0004), no cart page or mini-cart until Phase 6.
 
 See [AGENTS.md](../AGENTS.md#working-style) for the standing collaboration rules (small pieces, ask before deps/tradeoffs, tests ship with security-critical code, prioritize clickable UI).
 
+## Future dev fixes (found in manual testing, not scheduled)
+
+- **"Continue shopping" on the order page leads nowhere useful for an unpaid order.** Found while click-testing Phase 5. An order is a snapshot: creating it copies the cart's lines into the order, reserves their stock and empties the cart. Anything added to the cart afterwards is not part of the order, and checking out again is refused with `409 open_order` until the first order is paid or cancelled (one open order per owner, spec 0004). A cancelled order does not restore the cart either. So a shopper who clicks "Continue shopping", adds a product and comes back sees an order that doesn't include it, with no explanation. Pick one:
+  - **A. Remove (or relabel) the link while the order is `pending_payment`.** Small change in `OrderView`. Keep it for paid, cancelled and expired orders, where leaving the page is the right next step. Cheapest, but the shopper can't add to an order they have already placed.
+  - **B. Make a pending order editable**, so newly added products can be included. Larger, because the order is tied to money and stock:
+    - the changed lines need their stock reserved or released, with the hold's 15-minute deadline decided (extend it or keep it);
+    - the total changes, so a payment attempt already open at the gateway has the wrong amount. It would have to be abandoned and replaced (a late success on the old intent already ends in a refund, see ADR 0010);
+    - prices must be re-read from the CMS and the drift shown, as at order creation;
+    - the "one open order per owner" rule and the `open_order` message need rethinking;
+    - it needs its own spec, order events for the edits, and tests as strict as `createOrder`'s.
+  - Not decided. A is a reasonable stopgap if B is wanted later. Natural fit: Phase 6 (frontend polish), which already lists the missing cart page.
+
 ## Dev environment notes
 
-- All three apps run via `npm run dev` (root) or `dev:cms`/`dev:api`/`dev:web` individually. apps/cms on :3001, apps/api on :4000, apps/web on :3000.
+- All four apps run via `npm run dev` (root) or `dev:cms`/`dev:api`/`dev:gateway`/`dev:web` individually. apps/cms on :3001, apps/api on :4000, apps/gateway on :4100, apps/web on :3000.
 - apps/api's commerce DB: `apps/api/commerce.db` (SQLite, gitignored, created via `npm run db:migrate --workspace=apps/api`).
 - Browse the commerce DB visually: `npx drizzle-kit studio --workspace=apps/api` (or `cd apps/api && npx drizzle-kit studio`) → opens `https://local.drizzle.studio`.
-- apps/api env vars: `PORT` (default 4000), `WEB_ORIGIN` (default `http://localhost:3000`, used for CORS), `DATABASE_URL` (default `file:./commerce.db`). apps/web needs `NEXT_PUBLIC_API_URL` (default `http://localhost:4000`) to reach it from the browser.
+- apps/api env vars: `PORT` (default 4000), `WEB_ORIGIN` (default `http://localhost:3000`, used for CORS), `DATABASE_URL` (default `file:./commerce.db`). apps/web needs `NEXT_PUBLIC_API_URL` (default `http://localhost:4000`) to reach it from the browser. Payment env vars (`GATEWAY_*`, `WEBHOOK_URL`, `ALLOWED_RETURN_ORIGIN`) are in the README and the two `.env.example` files; apps/gateway's DB is `apps/gateway/gateway.db` (gitignored, created on first start).
 - apps/cms admin login (seeded): `ivana@email.com` / password was reset to `password123` during manual testing — change this if it matters to you.

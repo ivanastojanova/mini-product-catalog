@@ -194,3 +194,141 @@ describe("order_items and order_events constraints", () => {
     ).rejects.toThrow(/CHECK constraint/);
   });
 });
+
+describe("payments constraints", () => {
+  async function makeOrder() {
+    const [order] = await db.insert(schema.orders).values(orderValues()).returning();
+    return order.id;
+  }
+
+  function paymentValues(orderId: number, overrides: Partial<typeof schema.payments.$inferInsert> = {}) {
+    counter += 1;
+    return {
+      orderId,
+      gatewayIntentId: `pi_${counter}`,
+      amountCents: 1000,
+      currency: "EUR",
+      ...overrides,
+    };
+  }
+
+  it("accepts a valid row and defaults to pending with no refund", async () => {
+    const orderId = await makeOrder();
+    const [payment] = await db.insert(schema.payments).values(paymentValues(orderId)).returning();
+    expect(payment.status).toBe("pending");
+    expect(payment.refundId).toBeNull();
+  });
+
+  it("rejects an amount of zero or less", async () => {
+    const orderId = await makeOrder();
+    await expect(
+      db.insert(schema.payments).values(paymentValues(orderId, { amountCents: 0 })),
+    ).rejects.toThrow(/CHECK constraint/);
+    await expect(
+      db.insert(schema.payments).values(paymentValues(orderId, { amountCents: -5 })),
+    ).rejects.toThrow(/CHECK constraint/);
+  });
+
+  it("accepts every status the schema lists and rejects anything else", async () => {
+    for (const status of schema.PAYMENT_STATUS_VALUES) {
+      // A fresh order each time, so the one-pending-per-order rule doesn't interfere.
+      const orderId = await makeOrder();
+      await db.insert(schema.payments).values(paymentValues(orderId, { status }));
+    }
+    const orderId = await makeOrder();
+    await expect(
+      db.insert(schema.payments).values(paymentValues(orderId, { status: "captured" })),
+    ).rejects.toThrow(/CHECK constraint/);
+  });
+
+  it("rejects a payment for an order that doesn't exist", async () => {
+    await expect(db.insert(schema.payments).values(paymentValues(999_999))).rejects.toThrow(
+      /FOREIGN KEY constraint/,
+    );
+  });
+
+  it("refuses to delete an order that has a payment (financial history is kept)", async () => {
+    const orderId = await makeOrder();
+    await db.insert(schema.payments).values(paymentValues(orderId));
+    expect(() => sqlite.prepare("DELETE FROM orders WHERE id = ?").run(orderId)).toThrow(
+      /FOREIGN KEY constraint/,
+    );
+  });
+
+  it("rejects a reused gateway intent id", async () => {
+    const orderId = await makeOrder();
+    const otherOrderId = await makeOrder();
+    await db.insert(schema.payments).values(paymentValues(orderId, { gatewayIntentId: "pi_dup" }));
+    await expect(
+      db.insert(schema.payments).values(paymentValues(otherOrderId, { gatewayIntentId: "pi_dup" })),
+    ).rejects.toThrow(/UNIQUE constraint/);
+  });
+
+  it("allows several rows with no intent id yet (NULLs are distinct)", async () => {
+    const first = await makeOrder();
+    const second = await makeOrder();
+    await db.insert(schema.payments).values(paymentValues(first, { gatewayIntentId: null }));
+    await db.insert(schema.payments).values(paymentValues(second, { gatewayIntentId: null }));
+  });
+
+  it("allows only one pending attempt per order", async () => {
+    const orderId = await makeOrder();
+    await db.insert(schema.payments).values(paymentValues(orderId, { status: "pending" }));
+    await expect(
+      db.insert(schema.payments).values(paymentValues(orderId, { status: "pending" })),
+    ).rejects.toThrow(/UNIQUE constraint/);
+  });
+
+  it("allows a new attempt once the previous one is no longer pending, and any number of finished ones", async () => {
+    const orderId = await makeOrder();
+    await db.insert(schema.payments).values(paymentValues(orderId, { status: "failed" }));
+    await db.insert(schema.payments).values(paymentValues(orderId, { status: "failed" }));
+    await db.insert(schema.payments).values(paymentValues(orderId, { status: "pending" }));
+    await db.insert(schema.payments).values(paymentValues(orderId, { status: "refunded" }));
+  });
+
+  it("lets a pending attempt on another order coexist", async () => {
+    const first = await makeOrder();
+    const second = await makeOrder();
+    await db.insert(schema.payments).values(paymentValues(first, { status: "pending" }));
+    await db.insert(schema.payments).values(paymentValues(second, { status: "pending" }));
+  });
+});
+
+describe("payment_events constraints", () => {
+  function eventValues(overrides: Partial<typeof schema.paymentEvents.$inferInsert> = {}) {
+    counter += 1;
+    return {
+      gatewayEventId: `evt_${counter}`,
+      type: "payment_intent.succeeded",
+      payload: "{}",
+      outcome: "applied",
+      ...overrides,
+    };
+  }
+
+  it("accepts every outcome the schema lists and rejects anything else", async () => {
+    for (const outcome of schema.PAYMENT_EVENT_OUTCOME_VALUES) {
+      await db.insert(schema.paymentEvents).values(eventValues({ outcome }));
+    }
+    await expect(
+      db.insert(schema.paymentEvents).values(eventValues({ outcome: "maybe" })),
+    ).rejects.toThrow(/CHECK constraint/);
+  });
+
+  it("rejects the same gateway event id twice (this is the idempotency guarantee)", async () => {
+    await db.insert(schema.paymentEvents).values(eventValues({ gatewayEventId: "evt_same" }));
+    await expect(
+      db.insert(schema.paymentEvents).values(eventValues({ gatewayEventId: "evt_same" })),
+    ).rejects.toThrow(/UNIQUE constraint/);
+  });
+
+  it("requires a type and a payload", async () => {
+    await expect(
+      db.insert(schema.paymentEvents).values({ ...eventValues(), type: null as unknown as string }),
+    ).rejects.toThrow(/NOT NULL constraint/);
+    await expect(
+      db.insert(schema.paymentEvents).values({ ...eventValues(), payload: null as unknown as string }),
+    ).rejects.toThrow(/NOT NULL constraint/);
+  });
+});

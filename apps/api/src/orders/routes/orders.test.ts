@@ -255,7 +255,7 @@ describe("GET /orders/:publicId - who may see an order", () => {
     const res = await app.inject({ method: "GET", url: `/orders/${order.publicId}`, cookies: { session: cora.sessionToken } });
 
     expect(Object.keys(res.json().order).sort()).toEqual(
-      ["contactEmail", "createdAt", "currency", "items", "paidAt", "publicId", "reservationExpiresAt", "shippingAddress", "status", "totalCents"].sort(),
+      ["contactEmail", "createdAt", "currency", "items", "paidAt", "payment", "publicId", "reservationExpiresAt", "shippingAddress", "status", "totalCents"].sort(),
     );
     await app.close();
   });

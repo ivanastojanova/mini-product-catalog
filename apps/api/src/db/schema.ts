@@ -6,6 +6,7 @@ import {
   primaryKey,
   sqliteTable,
   text,
+  uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 
 /** Per-line cart cap — enforced in the API and by a CHECK constraint. Lives here (not a separate config file) because drizzle-kit loads this file through its own CJS loader, which can't resolve our `.js`-suffixed relative imports. */
@@ -190,6 +191,84 @@ export const orderEvents = sqliteTable(
     ),
     check("order_events_to_status_valid", sql.raw(`"to_status" IN (${statusList})`)),
     index("order_events_order_id_idx").on(table.orderId),
+  ],
+);
+
+/** Payment attempt statuses allowed by the CHECK constraint. `refund_pending` means money was taken that must go back (late, duplicate or mismatched payment) and the refund call has not succeeded yet. */
+export const PAYMENT_STATUS_VALUES = [
+  "pending",
+  "succeeded",
+  "failed",
+  "refund_pending",
+  "refunded",
+] as const;
+
+/** What happened to a received gateway event. `duplicate` is never stored on its own row (the PK conflict is the duplicate); it exists for logs and responses. */
+export const PAYMENT_EVENT_OUTCOME_VALUES = [
+  "applied",
+  "duplicate",
+  "ignored",
+  "refund_requested",
+] as const;
+
+const paymentStatusList = PAYMENT_STATUS_VALUES.map((status) => `'${status}'`).join(", ");
+const paymentOutcomeList = PAYMENT_EVENT_OUTCOME_VALUES.map((outcome) => `'${outcome}'`).join(", ");
+
+/**
+ * One row per payment attempt on an order. Amount and currency are copied from
+ * the order when the attempt starts, so what the gateway was asked to charge
+ * can be compared with what an event reports. No cascade: payment records are
+ * financial history and must outlive any cleanup of orders.
+ */
+export const payments = sqliteTable(
+  "payments",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    orderId: integer("order_id")
+      .notNull()
+      .references(() => orders.id),
+    // Null only between inserting the row and the gateway answering; unique once set.
+    gatewayIntentId: text("gateway_intent_id").unique(),
+    amountCents: integer("amount_cents").notNull(),
+    currency: text("currency").notNull(),
+    status: text("status").notNull().default("pending"),
+    refundId: text("refund_id"),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .notNull()
+      .default(sql`(unixepoch())`),
+    updatedAt: integer("updated_at", { mode: "timestamp" })
+      .notNull()
+      .default(sql`(unixepoch())`),
+  },
+  (table) => [
+    check("payments_amount_positive", sql`${table.amountCents} > 0`),
+    check("payments_status_valid", sql.raw(`"status" IN (${paymentStatusList})`)),
+    index("payments_order_id_idx").on(table.orderId),
+    // An order has at most one attempt in flight, so a double click can't start two.
+    uniqueIndex("payments_one_pending_per_order")
+      .on(table.orderId)
+      .where(sql`${table.status} = 'pending'`),
+  ],
+);
+
+/**
+ * Every gateway event ever received, keyed by the gateway's event id. The
+ * primary key IS the idempotency guarantee: inserting an id that exists fails,
+ * and that failure is how a redelivered event is recognised.
+ */
+export const paymentEvents = sqliteTable(
+  "payment_events",
+  {
+    gatewayEventId: text("gateway_event_id").primaryKey(),
+    type: text("type").notNull(),
+    payload: text("payload").notNull(),
+    outcome: text("outcome").notNull(),
+    receivedAt: integer("received_at", { mode: "timestamp" })
+      .notNull()
+      .default(sql`(unixepoch())`),
+  },
+  () => [
+    check("payment_events_outcome_valid", sql.raw(`"outcome" IN (${paymentOutcomeList})`)),
   ],
 );
 

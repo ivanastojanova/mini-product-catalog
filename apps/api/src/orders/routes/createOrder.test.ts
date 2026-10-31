@@ -145,7 +145,7 @@ describe("POST /orders as a guest", () => {
 
     const { order } = res.json();
     expect(Object.keys(order).sort()).toEqual(
-      ["contactEmail", "createdAt", "currency", "items", "paidAt", "publicId", "reservationExpiresAt", "shippingAddress", "status", "totalCents"].sort(),
+      ["contactEmail", "createdAt", "currency", "items", "paidAt", "payment", "publicId", "reservationExpiresAt", "shippingAddress", "status", "totalCents"].sort(),
     );
     expect(JSON.stringify(res.json())).not.toContain(key);
     expect(JSON.stringify(res.json())).not.toContain(hashSessionToken(cookieOf(res, "order_token")!.value));
