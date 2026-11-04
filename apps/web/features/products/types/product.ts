@@ -9,6 +9,12 @@ export type ProductImage = {
   alt: string;
 };
 
+export type ProductCategory = {
+  slug: string;
+  /** Localized label for the requested locale. */
+  name: string;
+};
+
 export type Product = {
   id: string;
   slug: string;
@@ -16,6 +22,7 @@ export type Product = {
   currency: string;
   title: string;
   description?: string;
+  category?: ProductCategory;
   images?: ProductImage[];
   specifications?: ProductSpecification[];
 };

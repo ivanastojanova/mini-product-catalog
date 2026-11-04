@@ -1,6 +1,7 @@
 import type { CmsMedia, CmsProduct } from "@/shared/cms/types";
 import type {
   Product,
+  ProductCategory,
   ProductImage,
   ProductSpecification,
 } from "@/features/products/types/product";
@@ -61,6 +62,22 @@ function mapSpecifications(
   }));
 }
 
+/** A category that was not populated (an id, or missing/deleted) is left off rather than shown half-filled. */
+export function mapCategory(
+  category: CmsProduct["category"],
+): ProductCategory | undefined {
+  if (
+    typeof category !== "object" ||
+    category === null ||
+    !category.slug ||
+    !category.name
+  ) {
+    return undefined;
+  }
+
+  return { slug: category.slug, name: category.name };
+}
+
 /** Map a CMS REST product document into the storefront Product shape. */
 export function mapProduct(doc: CmsProduct): Product {
   return {
@@ -70,6 +87,7 @@ export function mapProduct(doc: CmsProduct): Product {
     currency: doc.currency,
     title: doc.title,
     description: doc.description ?? undefined,
+    category: mapCategory(doc.category),
     images: mapImages(doc.images),
     specifications: mapSpecifications(doc.specifications),
   };

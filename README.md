@@ -289,7 +289,7 @@ This project is being extended in phases. See [`docs/PLAN.md`](docs/PLAN.md) for
 | 3 | Persistent cart (guest cookie + customer cart, merged on login — see [ADR 0006](docs/adr/0006-cookie-guest-cart-merged-on-login.md)) | ✅ Done |
 | 4 | Checkout & orders (state machine, stock reservation — see [ADR 0007](docs/adr/0007-inventory-and-lazy-reservation-expiry.md), [ADR 0008](docs/adr/0008-cookie-bound-guest-orders.md)) | ✅ Done |
 | 5 | Mock payment gateway (async, Stripe-style webhook + idempotency — see [ADR 0009](docs/adr/0009-separate-mock-payment-gateway.md), [ADR 0010](docs/adr/0010-webhook-as-only-source-of-payment-truth.md)) | ✅ Done |
-| 6 | Frontend e-commerce polish (filtering, mini-cart, order confirmation) | Planned |
+| 6 | Frontend e-commerce polish (filtering, mini-cart, order confirmation) | In progress |
 | 7 | CI (lint/typecheck/test on PR) | Planned |
 
 ### Tradeoffs / open items

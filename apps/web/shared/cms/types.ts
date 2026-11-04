@@ -18,6 +18,12 @@ export type CmsSpecification = {
   value: string;
 };
 
+export type CmsCategory = {
+  id: number | string;
+  slug: string;
+  name: string;
+};
+
 export type CmsProduct = {
   id: number | string;
   slug: string;
@@ -25,6 +31,8 @@ export type CmsProduct = {
   currency: string;
   title: string;
   description?: string | null;
+  /** An id when the request used `depth: 0`, the populated document at `depth: 1`. */
+  category?: number | string | CmsCategory | null;
   images?: (number | CmsMedia)[] | null;
   specifications?: CmsSpecification[] | null;
 };
