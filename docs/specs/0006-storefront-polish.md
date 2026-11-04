@@ -69,7 +69,7 @@ The cart API returns slug + quantity only (Spec 0003). Titles and prices live in
 
 **Two-step flow in apps/web (server):**
 1. Query the CMS for the catalog facets (search, category, price, sort).
-2. If a live facet is set, call a new batch endpoint on apps/api, `GET /stock?slugs=a,b,c`, and drop products that fail the test. The endpoint wraps the existing `getAvailability(db, slugs)`, sweeps expired holds first like `GET /stock/:slug`, is public, and sends `Cache-Control: no-store`. It needs a cap on the number of slugs and tests.
+2. If a live facet is set, call a new batch endpoint on apps/api, `GET /stock?slugs=a,b,c`, and drop products that fail the test. The endpoint wraps the existing `getAvailability(db, slugs)`, sweeps expired holds first like `GET /stock/:slug`, is public, and sends `Cache-Control: no-store`. It needs a cap on the number of slugs and tests. Built: `{ items: [{ slug, inStock, quantity }] }`, capped at 100 distinct slugs (over the cap is a 400, never a silent truncation).
 
 **Cache.** Requests whose catalog facets have a finite set of values (category, sort) use `unstable_cache` under the `products` tag. Free-text `q` and the price bounds `min`/`max` (any number up to `MAX_PRICE` is valid) skip the cache and call the CMS live. Any request with a live facet never caches the stock step.
 
