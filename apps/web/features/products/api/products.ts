@@ -1,8 +1,11 @@
 import type { Product } from "@/features/products/types/product";
 import { productCacheTags } from "@/features/products/lib/cacheTags";
 import { mapProduct } from "@/features/products/lib/mappers";
+import { getStockBatch } from "@/features/products/api/stock";
+import { applyLiveFilters } from "@/features/products/lib/liveFilters";
 import {
   DEFAULT_SORT,
+  hasLiveFacet,
   type ProductFilters,
 } from "@/features/products/lib/productFilters";
 import {
@@ -67,6 +70,27 @@ export async function getProducts(
   );
 
   return getCached();
+}
+
+/**
+ * The storefront's filtered list: the CMS query (`getProducts`), then, only if
+ * a live facet is set, apps/api's stock narrows it. The stock step is never
+ * cached. If apps/api is unreachable this throws rather than returning the
+ * unfiltered list, which would show out-of-stock items under an "in stock"
+ * filter; the page's error boundary handles it.
+ */
+export async function getFilteredProducts(
+  locale: Locale,
+  filters: ProductFilters,
+): Promise<Product[]> {
+  const products = await getProducts(locale, filters);
+
+  if (!hasLiveFacet(filters) || products.length === 0) {
+    return products;
+  }
+
+  const available = await getStockBatch(products.map((p) => p.slug));
+  return applyLiveFilters(products, available, filters);
 }
 
 /** Slugs only — used by `generateStaticParams` at build time (uncached). */
