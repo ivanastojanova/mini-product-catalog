@@ -1,19 +1,26 @@
 import type { Product } from "@/features/products/types/product";
 import { productCacheTags } from "@/features/products/lib/cacheTags";
 import { mapProduct } from "@/features/products/lib/mappers";
+import {
+  DEFAULT_SORT,
+  type ProductFilters,
+} from "@/features/products/lib/productFilters";
+import {
+  buildProductSearchParams,
+  isCacheableQuery,
+  productQueryCacheKey,
+} from "@/features/products/lib/productQuery";
 import type { Locale } from "@/shared/i18n/locales";
 import { cmsFetch } from "@/shared/cms/client";
 import type { CmsFindResponse, CmsProduct } from "@/shared/cms/types";
 import { unstable_cache } from "next/cache";
 
-async function fetchProducts(locale: Locale): Promise<Product[]> {
+async function fetchProducts(
+  locale: Locale,
+  filters: ProductFilters,
+): Promise<Product[]> {
   const result = await cmsFetch<CmsFindResponse<CmsProduct>>("/api/products", {
-    searchParams: {
-      locale,
-      depth: 1,
-      limit: 100,
-      sort: "title",
-    },
+    searchParams: buildProductSearchParams(filters, locale),
   });
 
   return result.docs.map(mapProduct);
@@ -39,11 +46,23 @@ async function fetchProduct(
 /**
  * Locale-aware CMS accessors over the apps/cms REST API.
  * Results are cached indefinitely and invalidated via `revalidateTag`.
+ *
+ * `filters` are the catalog facets from `parseProductFilters` (category, price,
+ * text, sort); live facets are applied by the caller. Queries with a finite set
+ * of values are cached; free text and price bounds call the CMS live (see
+ * `isCacheableQuery`).
  */
-export async function getProducts(locale: Locale): Promise<Product[]> {
+export async function getProducts(
+  locale: Locale,
+  filters: ProductFilters = { sort: DEFAULT_SORT },
+): Promise<Product[]> {
+  if (!isCacheableQuery(filters)) {
+    return fetchProducts(locale, filters);
+  }
+
   const getCached = unstable_cache(
-    async () => fetchProducts(locale),
-    ["products", locale],
+    async () => fetchProducts(locale, filters),
+    productQueryCacheKey(locale, filters),
     { tags: [productCacheTags.all] },
   );
 
