@@ -96,6 +96,15 @@ export const Product: CollectionConfig = {
       localized: true,
     },
     {
+      name: "category",
+      type: "relationship",
+      relationTo: "categories",
+      index: true,
+      admin: {
+        position: "sidebar",
+      },
+    },
+    {
       name: "images",
       type: "upload",
       relationTo: "media",

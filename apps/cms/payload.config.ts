@@ -6,6 +6,7 @@ import { fileURLToPath } from "url";
 import sharp from "sharp";
 
 import { Product } from "./collections/Product";
+import { Category } from "./collections/Category";
 import { Media } from "./collections/Media";
 import { Users } from "./collections/Users";
 import { defaultLocale, locales, localeLabels } from "./i18n/locales";
@@ -20,7 +21,7 @@ export default buildConfig({
       baseDir: path.resolve(dirname),
     },
   },
-  collections: [Users, Media, Product],
+  collections: [Users, Media, Category, Product],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || "",
   typescript: {
