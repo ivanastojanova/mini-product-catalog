@@ -6,13 +6,19 @@ import { ProductCard } from "./ProductCard";
 type ProductGridProps = {
   products: Product[];
   locale: Locale;
+  /** Shown when the list is empty; the caller knows whether a filter caused it. */
+  emptyMessage?: string;
 };
 
-export function ProductGrid({ products, locale }: ProductGridProps) {
+export function ProductGrid({
+  products,
+  locale,
+  emptyMessage = "No products yet.",
+}: ProductGridProps) {
   if (products.length === 0) {
     return (
       <p className="text-muted-foreground" role="status">
-        No products yet.
+        {emptyMessage}
       </p>
     );
   }

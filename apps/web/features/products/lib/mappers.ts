@@ -10,30 +10,13 @@ function isMedia(value: number | string | CmsMedia): value is CmsMedia {
   return typeof value === "object" && value !== null && "id" in value;
 }
 
-/**
- * Payload returns media `url` as a path relative to the CMS origin
- * (e.g. `/api/media/file/chair.jpg`). Since apps/cms now serves media from
- * its own origin (distinct from apps/web), prefix with `CMS_API_URL` so
- * `next/image` and `<img>` can load it cross-origin. See
- * next.config.ts `images.remotePatterns`.
- */
-function toAbsoluteCmsUrl(url: string | null | undefined): string | null {
-  if (!url) {
-    return null;
-  }
-  if (/^https?:\/\//.test(url)) {
-    return url;
-  }
-  const base = process.env.CMS_API_URL?.replace(/\/+$/, "") ?? "";
-  return `${base}${url}`;
-}
-
 function mapImage(media: CmsMedia): ProductImage {
   const rawUrl = media.url ?? media.thumbnailURL ?? null;
 
   return {
     id: String(media.id),
-    url: toAbsoluteCmsUrl(rawUrl),
+    // Kept as the CMS returns it (relative); the host is added when rendering, see mediaUrl.ts.
+    url: rawUrl,
     alt: media.alt || "Product image",
   };
 }
