@@ -1,0 +1,32 @@
+# ==========================================
+# 1. DEEP MONOREPO DEPENDENCIES & BUILDS
+# ==========================================
+# Targets node_modules and .next inside api, gateway, cms, and web
+**/node_modules/
+**/.next/
+**/.cache/
+**/dist/
+**/build/
+**/package-lock.json
+**/yarn.lock
+**/pnpm-lock.yaml
+
+# Ignore media, database binaries, and static assets
+*.png
+*.jpg
+*.jpeg
+*.svg
+*.ico
+sqlite.db
+*.local
+
+# ==========================================
+# 2. ACTIVE APPLICATION TOGGLES
+# ==========================================
+# UNCOMMENT the applications you are NOT actively editing right now.
+# This strictly locks down OpenCode/Cursor focus to your active workspace.
+
+# apps/api/       # Node.js backend
+# apps/cms/       # Payload CMS (Next.js backed)
+# apps/gateway/   # Payment Gateway (Node.js)
+# apps/web/       # Next.js Frontend

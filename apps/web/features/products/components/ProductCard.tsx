@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import type { Product } from "@/features/products/types/product";
 import { formatPrice } from "@/features/products/lib/formatters";
+import { cmsMediaUrl } from "@/shared/cms/mediaUrl";
 import type { Locale } from "@/shared/i18n/locales";
 import { localizedPath } from "@/shared/i18n/routing";
 
@@ -14,15 +15,16 @@ type ProductCardProps = {
 export function ProductCard({ product, locale }: ProductCardProps) {
   const href = localizedPath(locale, `/products/${product.slug}`);
   const thumbnail = product.images?.[0];
+  const thumbnailUrl = cmsMediaUrl(thumbnail?.url);
   const priceLabel = formatPrice(product.price, product.currency, locale);
 
   return (
     <article className="group flex h-full flex-col overflow-hidden rounded-xl bg-card text-card-foreground ring-1 ring-foreground/10 transition-shadow hover:shadow-md">
       <Link href={href} className="flex h-full flex-col outline-none focus-visible:ring-2 focus-visible:ring-ring">
         <div className="relative aspect-4/5 w-full overflow-hidden bg-muted">
-          {thumbnail?.url ? (
+          {thumbnail && thumbnailUrl ? (
             <Image
-              src={thumbnail.url}
+              src={thumbnailUrl}
               alt={thumbnail.alt || product.title}
               fill
               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"

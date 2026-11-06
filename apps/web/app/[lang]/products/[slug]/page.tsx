@@ -6,6 +6,7 @@ import {
   getProductBySlug,
   getProductSlugs,
 } from "@/features/products/api/products";
+import { withAbsoluteImageUrls } from "@/shared/cms/mediaUrl";
 import { ProductGallery } from "@/features/products/components/ProductGallery";
 import { ProductHeader } from "@/features/products/components/ProductHeader";
 import { ProductSpecs } from "@/features/products/components/ProductSpecs";
@@ -79,7 +80,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
       </p>
 
       <div className="grid grid-cols-1 gap-10 lg:grid-cols-2 lg:gap-14">
-        <ProductGallery images={product.images} title={product.title} />
+        <ProductGallery
+          images={withAbsoluteImageUrls(product.images)}
+          title={product.title}
+        />
 
         <div className="flex flex-col gap-10">
           <ProductHeader product={product} locale={locale} />

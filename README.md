@@ -25,16 +25,18 @@ This split (two separate Next.js apps, two separate processes, two separate data
 
 - Next.js 16 App Router, React 19
 - Payload CMS (SQLite, `apps/cms`)
+- Fastify + SQLite for the commerce API and the mock gateway
 - TanStack Query (client state in `apps/web`)
-- Tailwind CSS + shadcn/ui
-- Vitest (`apps/web`)
+- Tailwind CSS + shadcn-style components over Base UI primitives
+- Vitest (`apps/web`, `apps/api`, `apps/gateway`)
 
 ## Setup and run
 
 ```bash
-npm install                 # installs both workspaces
+npm install                 # installs all workspaces
 npm run dev                 # starts apps/cms (:3001), apps/api (:4000), apps/gateway (:4100), apps/web (:3000)
 npm run seed                # optional — seeds ~9 EN/DE furniture products + media
+npm run seed:categories --workspace=apps/cms  # optional — seeds the category list and assigns products
 ```
 
 Or run each app independently (useful when working on just one side):
@@ -102,6 +104,8 @@ Both apps refuse to start in `NODE_ENV=production` if these secrets are missing 
 
 The order only becomes `paid` when apps/api receives the gateway's signed webhook; returning from the gateway page changes nothing by itself. See [ADR 0009](docs/adr/0009-separate-mock-payment-gateway.md) and [ADR 0010](docs/adr/0010-webhook-as-only-source-of-payment-truth.md).
 
+A paid order shows a confirmation panel with the order number, the paid date and the next steps. It deliberately does not promise an email: there is no email service in this project yet.
+
 Products can also be added by hand in `/admin` — the seed script is convenience, not required.
 
 ---
@@ -145,9 +149,17 @@ apps/cms/
 
 apps/web/
   app/                  routing + composition only
-  features/products/    domain: components, api, hooks, lib, queries, types
+  features/products/    catalog: filters, query builders, cards, stock
+  features/cart/        cart query, mini-cart, cart page, optimistic add, cart math
+  features/checkout/    preview, place order, checkout form
+  features/orders/      order reads, history, payment start, status view
+  features/auth/        session, login/register, route protection
+  components/ui/        Base UI primitives and shadcn-style wrappers
   shared/cms/           REST client + hand-written CMS response types
   shared/i18n/          locale routing (duplicated, not shared, from apps/cms)
+
+apps/api/               Fastify commerce API (auth, cart, inventory, orders, payments webhook)
+apps/gateway/           mock payment provider (hosted pay page, signed webhooks, refunds)
 ```
 
 | Path | Public URL | Owner |
@@ -155,6 +167,7 @@ apps/web/
 | `apps/web/app/api/revalidate` | `:3000/api/revalidate` | apps/web — cache purge, called by apps/cms webhook |
 | `apps/api` `/cart`, `/cart/items/:slug` | `:4000/cart*` | apps/api — persistent guest + customer cart (Phase 3) |
 | `apps/api` `/stock/:slug` | `:4000/stock/:slug` | apps/api — real inventory: available = on hand − reserved (Phase 4) |
+| `apps/api` `/stock?slugs=a,b,c` | `:4000/stock?slugs=…` | apps/api — batch availability for the catalog's live stock filters (Phase 6) |
 | `apps/cms/app/admin` | `:3001/admin` | Payload admin |
 | `apps/cms/app/api/*` | `:3001/api/*` | Payload REST + GraphQL |
 
@@ -167,6 +180,9 @@ Payload was chosen because it integrates directly with Next.js App Router, suppo
 | Surface | How | Tags |
 |---------|-----|------|
 | Landing (`/[lang]`) | `unstable_cache` → `getProducts(locale)` | `products` |
+| Catalog with category/sort filters | `unstable_cache`, keyed by locale + category + sort → `getProducts(locale, filters)` | `products` |
+| Catalog with text search or a price range | live CMS query (unbounded key space, so not cached) | — |
+| Category list | `unstable_cache` → `getCategories(locale)` | `products` |
 | PDP (`/[lang]/products/[slug]`) | `unstable_cache` + `generateStaticParams` | `product:{slug}` |
 
 Locale is part of the cache **key**, not the tag — one save refreshes both locales for that slug, plus the listing. Editing one product does not bust other `product:{other}` entries.
@@ -179,11 +195,27 @@ Locale is part of the cache **key**, not the tag — one save refreshes both loc
 
 | Data | Where | Why |
 |------|-------|-----|
-| Name, description, images, specs, **price** | CMS → Server Components → cached HTML | SEO / catalog; refreshed via revalidation |
-| **Stock** | Client → TanStack Query → apps/api `/stock/:slug` | Volatile; page paints while it loads |
-| **Cart quantity** | Client → TanStack mutation → apps/api `/cart/items` | Server-side cart (guest cookie or customer), optimistic UI |
+| Name, description, images, specs, **price**, **category** | CMS → Server Components → cached HTML | SEO / catalog; refreshed via revalidation |
+| **Stock** | Client → TanStack Query → apps/api `/stock/:slug`; catalog filters use the batch `/stock?slugs=` | Volatile; page paints while it loads |
+| **Cart quantity** | Client → TanStack mutation → apps/api `/cart/items` | Server-side cart (guest cookie or customer); optimistic add on the PDP, server-confirmed quantity/remove on the cart page |
+| **Cart prices, subtotal** | Client → `GET /checkout/preview` (cart page; mini-cart fetches on open) | Live CMS prices + stock flags; the same pricing checkout charges |
 
 Price stays in the CMS cache on purpose — treating it as client-only would hide the revalidation story. Stock changes often and isn't SEO-critical.
+
+### Catalog filtering
+
+The catalog's search and filter bar keeps its state in the URL, so a filtered view survives reload and back/forward and can be shared:
+
+| Param | Values | Runs in |
+|-------|--------|---------|
+| `q` | up to 80 characters, title search | CMS (`where[title][like]`) |
+| `category` | a category slug that exists in the CMS | CMS (`where[category.slug][equals]`) |
+| `min`, `max` | price bounds in major units, inclusive | CMS (`where[price]`) |
+| `sort` | `title` (default), `title-desc`, `price-asc`, `price-desc` | CMS (`sort`, with `title` as tie-breaker) |
+| `inStock` | `1` | apps/api `/stock?slugs=`, then apps/web |
+| `minQty` | 1–999 | apps/api `/stock?slugs=`, then apps/web |
+
+Invalid values are dropped, never forwarded to the CMS. Categories are CMS content (`categories` collection), so adding one needs no code change. Category and sort combinations are cached (see above); `q` and price bounds always call the CMS live. Live stock filters run after the CMS query, so combining them with pagination would give wrong page counts — there is no pagination yet. Search uses SQLite `LIKE`, which is not case-insensitive for non-ASCII letters, so `MALMÖ` finds nothing. See [ADR 0011](docs/adr/0011-server-side-catalog-filtering.md).
 
 Stock is seeded once from the CMS slugs (`npm run db:seed-inventory --workspace=apps/api`, 10 units each, never overwrites existing rows). To see an out-of-stock label, set a product's `on_hand` to 0 in Drizzle Studio.
 
@@ -215,7 +247,7 @@ fetch("http://localhost:3000/api/revalidate", {
   method: "POST",
   headers: {
     "Content-Type": "application/json",
-    Authorization: "Bearer dev-revalidate-secret-change-me",
+    Authorization: "Bearer YOUR_REVALIDATE_SECRET",
   },
   body: JSON.stringify({ slug: "malmo-lounge-chair" }),
 })
@@ -250,6 +282,8 @@ fetch("http://localhost:3000/api/revalidate", {
 
 On a PDP, **Add to cart** updates **"N in cart"** immediately, then `POST /cart/items` on apps/api confirms (the server's quantity wins, e.g. when clamped at 10) or rolls back on failure (unknown product, CMS or API down). Mutation: `features/cart/hooks/useAddToCart`; UI: `AddToCartButton`. The old flaky stub is gone, so to see a rollback, stop apps/api and click the button.
 
+The header cart button opens a mini-cart with the same priced preview: each line with unit price, quantity stepper (1–10) and remove, plus the subtotal and links to the full `/[lang]/cart` page or checkout. The preview is fetched when the popover opens (it prices from the CMS and sweeps expired holds, so it is not prefetched on every page view). The cart page and the mini-cart share `CartLineItem` and the same write hooks; each write re-reads both the cart badge query and the preview on settle, so neither view shows a guessed price or stock flag.
+
 ---
 
 ## Testing
@@ -262,16 +296,19 @@ npm run test --workspace=apps/api   # one app, explicit
 npm run test:watch --workspace=apps/web
 ```
 
-Current coverage: apps/api has Vitest suites for auth (hashing, session tokens, register/login/logout/session routes) and the cart (resolution, routes, guest→customer merge); apps/web covers the cart client (API wrappers, optimistic add + rollback) and route protection. Also `/api/revalidate` auth accept/reject + tag selection on rename (`apps/web/app/api/revalidate/route.test.ts`) — the highest-value test from the original take-home's testing plan, now also covering the webhook path end-to-end.
+Current coverage: apps/api has Vitest suites for auth (hashing, session tokens, register/login/logout/session routes), the cart (resolution, routes, guest→customer merge), inventory and reservations, checkout preview and order creation, and the payment webhook (signature, idempotency). apps/gateway covers its API key, return-URL allow-list, idempotency keys, settling once, signed delivery, refunds and the pay page. apps/web covers the catalog filters and query builders, cart client (API wrappers, optimistic add + rollback, cart write invalidation), route protection, order/checkout API wrappers and formatting helpers. Also `/api/revalidate` auth accept/reject + tag selection on rename (`apps/web/app/api/revalidate/route.test.ts`) — the highest-value test from the original take-home's testing plan, now also covering the webhook path end-to-end.
+
+Catalog filtering (Phase 6): the URL parser/facet registry, Payload query builder and cache rule, live stock filters and the filter draft are unit-tested. The rendered filter bar has no component tests (the repo has none); it is covered by a browser click-through. The filtering decision and its tradeoffs are in [ADR 0011](docs/adr/0011-server-side-catalog-filtering.md).
 
 Payments (Phase 5): webhook signature verification (including a fixed test vector asserted in both apps/api and apps/gateway), insert-first idempotency, late-payment and wrong-amount refunds, the order state machine, starting a payment (reuse, retry after decline, gateway down), and the gateway itself (API key, return-URL allow-list, idempotency keys, settling an intent once, signed delivery, refunds, the pay page). Security-relevant tests were mutation-checked.
 
 Planned, in priority order as each phase lands (see [AGENTS.md](AGENTS.md) "Testing"):
 
-1. Auth: password hashing, JWT sign/verify/expiry, refresh-token rotation
+1. ~~Auth: password hashing, session tokens/expiry, login/register/logout~~ — done in Phase 2
 2. ~~Cart: guest↔user merge, quantity edge cases~~ — done in Phase 3
-3. Orders: total calculation, state transitions, authorization (owner-or-admin)
+3. ~~Orders: total calculation, state transitions, authorization (owner-or-admin)~~ — done in Phase 4
 4. ~~Payments: webhook signature verification, idempotency/replay safety~~ — done in Phase 5
+5. Catalog filtering: facet registry, URL parser, CMS query builder, live stock filters — done in Phase 6
 
 Money-critical and security-critical logic ships with tests in the same change, not retrofitted later.
 
@@ -289,7 +326,7 @@ This project is being extended in phases. See [`docs/PLAN.md`](docs/PLAN.md) for
 | 3 | Persistent cart (guest cookie + customer cart, merged on login — see [ADR 0006](docs/adr/0006-cookie-guest-cart-merged-on-login.md)) | ✅ Done |
 | 4 | Checkout & orders (state machine, stock reservation — see [ADR 0007](docs/adr/0007-inventory-and-lazy-reservation-expiry.md), [ADR 0008](docs/adr/0008-cookie-bound-guest-orders.md)) | ✅ Done |
 | 5 | Mock payment gateway (async, Stripe-style webhook + idempotency — see [ADR 0009](docs/adr/0009-separate-mock-payment-gateway.md), [ADR 0010](docs/adr/0010-webhook-as-only-source-of-payment-truth.md)) | ✅ Done |
-| 6 | Frontend e-commerce polish (filtering, mini-cart, order confirmation) | In progress |
+| 6 | Frontend e-commerce polish (filtering, mini-cart, cart page, order confirmation) — filtering decision in [ADR 0011](docs/adr/0011-server-side-catalog-filtering.md) | ✅ Done |
 | 7 | CI (lint/typecheck/test on PR) | Planned |
 
 ### Tradeoffs / open items
@@ -298,7 +335,9 @@ This project is being extended in phases. See [`docs/PLAN.md`](docs/PLAN.md) for
 |------|-----|----------------|
 | Media | Local uploads | S3-compatible + CDN |
 | Localization | Duplicated locale config per app | Shared workspace package if locales grow |
-| Stock / cart | Stubs (not yet backed by real inventory) | Real stock field on Product; stock reservation on checkout |
+| Stock / cart | Real inventory in apps/api with reserve-at-order and lazy expiry (ADR 0007) | Stock admin UI; move the live stock filter into the data layer if the catalog gets pagination |
+| Catalog search | CMS `where` queries; SQLite `LIKE` is ASCII-only case-insensitive | Search service (e.g. Postgres full-text or Meilisearch) once facets/pagination outgrow the CMS |
+| Catalog scale | Listing capped at `limit: 100`, no pagination | Pagination plus a search service (see the filtering ADR) |
 | Revalidation delivery | Fire-and-forget, no retry | Queue + retries for webhook delivery |
 | Secret compare | String equality | Constant-time comparison |
 | New slugs | On-demand until next build | Clearer path registration |

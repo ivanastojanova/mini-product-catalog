@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ComponentProps } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useCancelOrder, useStartPayment } from "@/features/orders/hooks/useOrderMutations";
 import { useOrder } from "@/features/orders/hooks/useOrder";
 import { formatCountdown, secondsUntil } from "@/features/orders/lib/countdown";
+import { formatOrderDate } from "@/features/orders/lib/formatDate";
 import type { Order, OrderStatus } from "@/features/orders/types/order";
 import { formatMoney } from "@/features/products/lib/formatters";
 import type { Locale } from "@/shared/i18n/locales";
@@ -48,6 +49,14 @@ const copy: Record<
     retry: string;
     keepShopping: string;
     actionError: string;
+    confirmationTitle: string;
+    confirmationBody: string;
+    orderNumber: string;
+    paidOn: string;
+    nextSteps: string;
+    nextPreparing: string;
+    nextStatus: string;
+    nextKeepLink: string;
   }
 > = {
   en: {
@@ -91,6 +100,14 @@ const copy: Record<
     retry: "Retry",
     keepShopping: "Continue shopping",
     actionError: "That didn't work.",
+    confirmationTitle: "Order confirmed",
+    confirmationBody: "Here's what happens next with your order.",
+    orderNumber: "Order number",
+    paidOn: "Paid on",
+    nextSteps: "What happens next",
+    nextPreparing: "We're preparing your order for shipping.",
+    nextStatus: "This page always shows the latest status.",
+    nextKeepLink: "Keep this link to come back to your order.",
   },
   de: {
     status: {
@@ -133,6 +150,14 @@ const copy: Record<
     retry: "Erneut versuchen",
     keepShopping: "Weiter einkaufen",
     actionError: "Das hat nicht geklappt.",
+    confirmationTitle: "Bestellung bestätigt",
+    confirmationBody: "So geht es mit deiner Bestellung weiter.",
+    orderNumber: "Bestellnummer",
+    paidOn: "Bezahlt am",
+    nextSteps: "Wie es weitergeht",
+    nextPreparing: "Wir bereiten deine Bestellung für den Versand vor.",
+    nextStatus: "Diese Seite zeigt immer den aktuellen Status.",
+    nextKeepLink: "Speichere diesen Link, um zu deiner Bestellung zurückzukehren.",
   },
 };
 
@@ -143,6 +168,21 @@ const badgeVariant: Record<OrderStatus, "default" | "secondary" | "destructive" 
   cancelled: "secondary",
   expired: "destructive",
 };
+
+function CheckIcon(props: ComponentProps<"svg">) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      aria-hidden="true"
+      {...props}
+    >
+      <path d="m2.5 8.5 4 4 7-9" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 /** The extra line about the payment, if the latest attempt needs one. */
 function paymentNoteFor(order: Order, labels: (typeof copy)[Locale]): string | null {
@@ -236,6 +276,7 @@ export function OrderView({ locale, publicId }: OrderViewProps) {
   // Stays true after a successful start, while the browser leaves for the payment page.
   const busy = cancel.isPending || pay.isPending || pay.isSuccess;
   const paymentNote = paymentNoteFor(order, labels);
+  const paidOn = order.paidAt ? formatOrderDate(order.paidAt, locale) : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -255,6 +296,49 @@ export function OrderView({ locale, publicId }: OrderViewProps) {
           </p>
         ) : null}
       </div>
+
+      {order.status === "paid" ? (
+        <section
+          aria-label={labels.confirmationTitle}
+          className="rounded-lg border border-border bg-muted/30 p-4"
+        >
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <CheckIcon className="size-4" />
+            </span>
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-1">
+                <h2 className="text-base font-semibold text-foreground">
+                  {labels.confirmationTitle}
+                </h2>
+                <p className="text-sm text-muted-foreground">{labels.confirmationBody}</p>
+              </div>
+
+              <dl className="grid gap-3 text-sm sm:grid-cols-2">
+                <div>
+                  <dt className="text-muted-foreground">{labels.orderNumber}</dt>
+                  <dd className="font-mono text-foreground">{order.publicId}</dd>
+                </div>
+                {paidOn ? (
+                  <div>
+                    <dt className="text-muted-foreground">{labels.paidOn}</dt>
+                    <dd className="text-foreground">{paidOn}</dd>
+                  </div>
+                ) : null}
+              </dl>
+
+              <div>
+                <h3 className="text-sm font-medium text-foreground">{labels.nextSteps}</h3>
+                <ol className="mt-1 list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
+                  <li>{labels.nextPreparing}</li>
+                  <li>{labels.nextStatus}</li>
+                  <li>{labels.nextKeepLink}</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <section aria-label={labels.items}>
         <ul className="divide-y divide-border rounded-lg border border-border">

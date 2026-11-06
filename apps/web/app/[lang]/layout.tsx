@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { MiniCart } from "@/features/cart/components/MiniCart";
 import { LanguageSwitcher } from "@/shared/i18n/LanguageSwitcher";
 import { isLocale, locales, type Locale } from "@/shared/i18n/locales";
 import { QueryProvider } from "@/shared/providers/QueryProvider";
@@ -24,9 +25,9 @@ export const metadata: Metadata = {
   description: "Localized product catalog",
 };
 
-const headerCopy: Record<Locale, { account: string; checkout: string }> = {
-  en: { account: "Account", checkout: "Checkout" },
-  de: { account: "Konto", checkout: "Kasse" },
+const headerCopy: Record<Locale, { account: string }> = {
+  en: { account: "Account" },
+  de: { account: "Konto" },
 };
 
 export function generateStaticParams() {
@@ -66,12 +67,7 @@ export default async function FrontendLayout({
                 Mini Catalog
               </Link>
               <div className="flex items-center gap-4">
-                <Link
-                  href={`/${locale}/checkout`}
-                  className="text-sm text-muted-foreground hover:text-foreground"
-                >
-                  {headerCopy[locale].checkout}
-                </Link>
+                <MiniCart locale={locale} />
                 <Link
                   href={`/${locale}/account`}
                   className="text-sm text-muted-foreground hover:text-foreground"
