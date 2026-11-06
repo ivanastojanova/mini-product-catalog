@@ -1,6 +1,6 @@
 # Spec 0006: Frontend e-commerce polish (mini-cart, cart page, filtering, order confirmation)
 
-**Status:** In progress (scope settled; filtering design settled, CMS `categories` collection built, seed and apps/web wiring next)
+**Status:** Done
 
 **Phase:** 6
 
@@ -26,7 +26,7 @@ The cart API returns slug + quantity only (Spec 0003). Titles and prices live in
 
 - The count badge only needs the cart query (`cartKeys.current()`), which is already shared. It must not wait for the preview.
 - Quantity change and remove call the existing `PUT` / `DELETE /cart/items/:slug`. After each, the cart query and the preview are refreshed.
-- To decide when we build it: whether the preview request is made when the dropdown opens or in the background. The preview also sweeps expired holds, so it is not free.
+- Settled when the mini-cart was built: the preview is requested when the dropdown opens, not in the background. The preview also sweeps expired holds, so it is not free (see "As built (mini-cart)").
 - The preview returns `409` for mixed currencies. The UI needs a readable state for that, not a blank panel.
 
 ## Decision 2: Filtering runs server-side through the CMS query
@@ -79,19 +79,19 @@ The cart API returns slug + quantity only (Spec 0003). Titles and prices live in
 
 ## Decision 4: Build order (small pieces, each clickable before the next)
 
-1. **Cart badge in the header.** Count only, from the existing cart query. Smallest visible win.
-2. **Cart page** `/[lang]/cart`: lines from the preview, quantity stepper, remove, subtotal, "Checkout" button, empty state. EN/DE.
-3. **Mini-cart dropdown** on the header badge, reusing the cart page's line components.
-4. **Checkout link in the header** becomes the cart (the current "Checkout" link goes to the cart page; the cart page leads to checkout).
-5. **Order confirmation polish** on `OrderView` for paid orders.
+1. [x] **Cart badge in the header.** Count only, from the existing cart query. Smallest visible win.
+2. [x] **Cart page** `/[lang]/cart`: lines from the preview, quantity stepper, remove, subtotal, "Checkout" button, empty state. EN/DE.
+3. [x] **Mini-cart dropdown** on the header badge, reusing the cart page's line components.
+4. [x] **Checkout link in the header** becomes the cart. Absorbed into steps 2–3: step 1 had already replaced the separate "Checkout" text link with the cart badge, and the dropdown now holds the "View cart" link to `/[lang]/cart`.
+5. [x] **Order confirmation polish** on `OrderView` for paid orders.
 6. **Filtering**, in small pieces, each tested before the next:
-   1. Facet registry and URL parser (pure, unit tests). No UI or CMS change yet.
-   2. CMS `category` field and seed update (once the open question below is settled).
-   3. apps/web: `getProducts` takes parsed filters and builds the Payload query (catalog facets only), with cache rules.
-   4. apps/api: `GET /stock?slugs=` batch endpoint with tests.
-   5. apps/web: the live-facet step (in stock, minimum quantity).
-   6. The filter bar UI (debounced search, transitions, EN/DE), then a browser click-through.
-7. Tests and docs: pure helpers get unit tests (like the rest of apps/web); no component tests exist in the repo, so the UI is covered by a browser click-through. README and PLAN updated; an ADR is written if the filtering decision has real tradeoffs.
+   1. [x] Facet registry and URL parser (pure, unit tests). No UI or CMS change yet.
+   2. [x] CMS `category` field and seed update (once the open question below is settled).
+   3. [x] apps/web: `getProducts` takes parsed filters and builds the Payload query (catalog facets only), with cache rules.
+   4. [x] apps/api: `GET /stock?slugs=` batch endpoint with tests.
+   5. [x] apps/web: the live-facet step (in stock, minimum quantity).
+   6. [x] The filter bar UI (debounced search, transitions, EN/DE), then a browser click-through.
+7. [x] Tests and docs: pure helpers get unit tests (like the rest of apps/web); no component tests exist in the repo, so the UI is covered by a browser click-through. README and PLAN updated; an ADR is written if the filtering decision has real tradeoffs — written as [ADR 0011](../adr/0011-server-side-catalog-filtering.md).
 
 ## Out of scope
 
@@ -99,8 +99,47 @@ The cart API returns slug + quantity only (Spec 0003). Titles and prices live in
 - Confirmation email.
 - Product reviews, wishlists, pagination of the catalog.
 
+## As built (filtering)
+
+Recorded after the filtering code landed; see [ADR 0011](../adr/0011-server-side-catalog-filtering.md) for the decision and tradeoffs.
+
+- **Price bounds are not cached.** The original plan cached everything with a finite key space and named category and sort. Price bounds (`min`, `max`) look finite but accept any number up to `MAX_PRICE`, so they share the unbounded-key problem with free text and go to the CMS live. `isCacheableQuery` only allows category + sort.
+- **The filter bar uses the Base UI primitives already in the repo** — `Select` and `Checkbox` wrappers in `apps/web/components/ui/` — not native `<select>` / `<input type="checkbox">`, matching `Button`, `Badge`, `Input` and `Field`.
+- **The registry lives in `productFilters.ts`** rather than a separate file; it is the same single definition the spec asked for.
+- **The home page is no longer statically rendered.** It reads `searchParams`, so it renders per request; the unfiltered data still comes from the cached `getProducts(locale)` entry, so the extra work is a cache hit rather than a CMS call.
+- **Search and number inputs are debounced (350 ms)**; category, sort and the in-stock checkbox navigate immediately.
+- **The stock batch endpoint is capped at 100 distinct slugs** (and a slug at 100 chars). apps/web de-duplicates and chunks its requests so a larger catalog keeps working without moving the filter into the data layer.
+- **If apps/api fails while a live facet is active, the page errors** instead of showing an unfiltered list that would contradict the "in stock" filter.
+
+## As built (cart page)
+
+- **`/[lang]/cart` renders `GET /checkout/preview`**, so the lines, unit prices, subtotal and stock flags are the same numbers checkout will charge. The header badge now links here.
+- **Quantity and remove are not optimistic.** They call the existing `PUT` / `DELETE /cart/items/:slug` and, on settle (success or failure), invalidate both the cart query and the priced preview. A failed response after apps/api applied the write therefore re-reads the server rather than leaving a guessed quantity on screen. The controls stay disabled until the write and the follow-up preview read are done, so a fast second click can't step from the old quantity.
+- **The stepper is capped at the same per-line maximum as apps/api (10)**; one unit is the floor, and removal is its own button.
+- **Line rendering is a separate `CartLineItem` component** so the step 3 mini-cart can reuse it instead of duplicating prices or controls.
+- **A mixed-currency cart is a typed `mixed_currency` error** from the preview rather than a generic failure, and the cart page shows a localized explanation. Known limitation: the preview returns no lines in that state, so the offending line cannot be removed from the cart page yet; the message plus retry/browse is what it offers.
+- **The empty state is the cart page's own**, not the checkout page's: "Your cart is empty", a browse link, and no checkout button.
+
+## As built (mini-cart)
+
+- **Built on the existing Base UI `Popover`** (`components/ui/popover.tsx`), not a new dependency. The header trigger is a button with the live unit badge; the panel contains the lines, subtotal, a "View cart" link and a "Checkout" link.
+- **The preview is fetched when the popover opens, not in the background.** This settles the Decision 1 question with the user. `MiniCartPanel` is mounted only while the popup is open, so `useCheckoutPreview` does not run on every page view; the cost is a short skeleton on first open, and re-opening refetches (the preview's `gcTime` is 0).
+- **The popover is controlled by `MiniCart`** so the links inside it close the panel before navigating. The header lives in the layout, so an uncontrolled popover would stay open across the route change.
+- **It reuses `CartLineItem` (with a `compact` layout) and the same cart write hooks as the cart page**, so quantity/remove behavior — including locking controls until the refreshed preview arrives — cannot drift between the two.
+- **States:** skeleton, empty with a browse link, load error with retry, mixed-currency explanation, and per-line stock problems. The panel offers "View cart" and "Checkout"; checkout still blocks if the cart has a problem.
+- **It opens on click or keyboard only**, not hover, so it stays predictable for keyboard and touch users.
+
+## As built (order confirmation)
+
+- **Only `paid` orders get the confirmation panel.** It is additive: the status badge and its note stay, and `fulfilled` keeps its "on its way" note rather than showing a confirmation for an order that has moved on.
+- **It shows the order number and the paid date**, formatted per locale by `features/orders/lib/formatDate.ts` (unit-tested; an unparseable timestamp omits the line).
+- **The next steps are honest:** preparing for shipping, this page always shows the latest status, keep the link. There is deliberately no "we'll email you" step, because the project has no email service (out of scope for this phase).
+- **No new route, no change to pending/declined/refunding states**, and the page stays `noindex`.
+
 ## Open questions
 
-- **`category` modelling: decided, a `categories` collection** (not a fixed select). Editors add categories in the admin without a deploy and names are localized. Each product has one optional `category` relationship. The category list is **not** hard-coded in apps/web: apps/web fetches it from the CMS (cached under the `products` tag) and validates `?category=` against the fetched slugs. That replaces the proposed `PRODUCT_CATEGORIES` constant in `productFilters.ts`, which is now only a placeholder and gets removed in the next piece. Still to do: a single category per product for now; multiple tags would make `category` `hasMany` and the CMS `where` an "in".
-- Category `slug` is validated in the CMS (lowercase words joined by hyphens) so it is safe in URLs and with `equals`. It is the URL value; the localized `name` is the label. A collection gives localized names and lets editors add categories without a code change, at the cost of a relationship and `depth` on every product read.
-- Does the `category` need localized labels (the CMS already localizes title/description)? Decide with the CMS change.
+All settled during the build:
+
+- **`category` modelling:** a `categories` collection (slug + localized name), with one optional relationship per product. The category list is fetched from the CMS (`getCategories`, cached under the `products` tag) and `?category=` is validated against it. The old `PRODUCT_CATEGORIES` placeholder is gone.
+- **Localized labels:** yes — the name is localized in the CMS and the slug is the URL value.
+- **Multiple categories per product:** single category for now. Multiple tags would make the field `hasMany` and the CMS `where` an "in".

@@ -6,7 +6,7 @@ import type {
 } from "@/features/checkout/types/checkout";
 import type { Order } from "@/features/orders/types/order";
 import type { Locale } from "@/shared/i18n/locales";
-import { apiFetch, extractErrorMessage } from "@/shared/api/client";
+import { apiFetch } from "@/shared/api/client";
 
 const KNOWN_CODES: CheckoutErrorCode[] = [
   "empty_cart",
@@ -51,16 +51,25 @@ type ErrorBody = {
   orderPublicId?: string;
 };
 
-/** The visitor's cart priced as an order would be, in cents. Never cached: stock and prices move. */
+/**
+ * The visitor's cart priced as an order would be, in cents. Never cached:
+ * stock and prices move. A mixed-currency cart is a typed refusal so the cart
+ * page can explain it instead of showing a generic load failure.
+ */
 export async function getCheckoutPreview(locale: Locale): Promise<CheckoutPreview> {
   const response = await apiFetch(
     `/checkout/preview?locale=${encodeURIComponent(locale)}`,
   );
 
   if (!response.ok) {
-    throw new Error(
-      await extractErrorMessage(response, "Could not load your checkout."),
-    );
+    const body = (await response.json().catch(() => ({}))) as ErrorBody;
+    const message = body.message ?? "Could not load your checkout.";
+
+    if (response.status === 409 && body.code === "mixed_currency") {
+      throw new CheckoutError("mixed_currency", message);
+    }
+
+    throw new Error(message);
   }
 
   return response.json() as Promise<CheckoutPreview>;

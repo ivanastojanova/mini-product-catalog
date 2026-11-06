@@ -72,6 +72,23 @@ describe("checkout API wrappers", () => {
       fetchMock.mockResolvedValue(jsonResponse({ message: "Could not load product prices." }, 502));
       await expect(getCheckoutPreview("en")).rejects.toThrow("Could not load product prices.");
     });
+
+    it("turns a mixed-currency 409 into a typed error the cart page can explain", async () => {
+      fetchMock.mockResolvedValue(
+        jsonResponse(
+          { code: "mixed_currency", message: "Your cart contains items in different currencies." },
+          409,
+        ),
+      );
+
+      const error = await getCheckoutPreview("en").catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(CheckoutError);
+      expect((error as CheckoutError).code).toBe("mixed_currency");
+      expect((error as CheckoutError).message).toBe(
+        "Your cart contains items in different currencies.",
+      );
+    });
   });
 
   describe("placeOrder", () => {

@@ -4,6 +4,7 @@ import {
   MAX_LINE_QUANTITY,
   addOptimistically,
   quantityInCart,
+  totalQuantity,
   withConfirmedQuantity,
 } from "./cartMath";
 
@@ -83,5 +84,23 @@ describe("quantityInCart", () => {
 
   it("reads the line's quantity", () => {
     expect(quantityInCart({ items: [{ slug: "lamp", quantity: 4 }] }, "lamp")).toBe(4);
+  });
+});
+
+describe("totalQuantity", () => {
+  it("is 0 for an unloaded or empty cart", () => {
+    expect(totalQuantity(undefined)).toBe(0);
+    expect(totalQuantity({ items: [] })).toBe(0);
+  });
+
+  it("sums the units across every line", () => {
+    expect(
+      totalQuantity({
+        items: [
+          { slug: "lamp", quantity: 2 },
+          { slug: "desk", quantity: 3 },
+        ],
+      }),
+    ).toBe(5);
   });
 });

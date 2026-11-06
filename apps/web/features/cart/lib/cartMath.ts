@@ -46,3 +46,8 @@ export function withConfirmedQuantity(
 export function quantityInCart(cart: Cart | undefined, slug: string): number {
   return cart?.items.find((line) => line.slug === slug)?.quantity ?? 0;
 }
+
+/** Units across all lines, for the header badge. Missing cart (not loaded yet, or failed) counts as 0. */
+export function totalQuantity(cart: Cart | undefined): number {
+  return cart?.items.reduce((sum, line) => sum + line.quantity, 0) ?? 0;
+}

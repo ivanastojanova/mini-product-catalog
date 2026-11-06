@@ -4,7 +4,16 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   EMPTY_DRAFT,
   draftToFilters,
@@ -86,9 +95,6 @@ const copy: Record<Locale, Copy> = {
 
 const DEBOUNCE_MS = 350;
 
-const selectClassName =
-  "h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2 text-base outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30";
-
 function isDefault(draft: FilterDraft): boolean {
   return (Object.keys(EMPTY_DRAFT) as (keyof FilterDraft)[]).every(
     (key) => draft[key] === EMPTY_DRAFT[key],
@@ -113,6 +119,18 @@ export function ProductFilterBar({
 
   const knownCategories = categories.map((category) => category.slug);
   const urlKey = serializeProductFilters(filters).toString();
+
+  const categoryItems = [
+    { value: null, label: labels.allCategories },
+    ...categories.map((category) => ({
+      value: category.slug,
+      label: category.name,
+    })),
+  ];
+  const sortItems = SORT_KEYS.map((key) => ({
+    value: key,
+    label: labels.sortOptions[key],
+  }));
 
   const [draft, setDraft] = useState<FilterDraft>(() => filtersToDraft(filters));
   const [typing, setTyping] = useState(false);
@@ -207,40 +225,53 @@ export function ProductFilterBar({
           />
         </label>
 
-        <label className="flex flex-col gap-1.5 text-sm font-medium">
-          {labels.category}
-          <select
-            name="category"
-            className={selectClassName}
-            value={draft.category}
-            onChange={(event) => update({ category: event.target.value }, false)}
+        <div className="flex flex-col gap-1.5">
+          <Select
+            items={categoryItems}
+            value={draft.category || null}
+            onValueChange={(value) => {
+              if (value === null || typeof value === "string") {
+                update({ category: value ?? "" }, false);
+              }
+            }}
           >
-            <option value="">{labels.allCategories}</option>
-            {categories.map((category) => (
-              <option key={category.slug} value={category.slug}>
-                {category.name}
-              </option>
-            ))}
-          </select>
-        </label>
+            <SelectLabel>{labels.category}</SelectLabel>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {categoryItems.map((item) => (
+                <SelectItem key={item.value ?? "all"} value={item.value}>
+                  {item.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-        <label className="flex flex-col gap-1.5 text-sm font-medium">
-          {labels.sort}
-          <select
-            name="sort"
-            className={selectClassName}
+        <div className="flex flex-col gap-1.5">
+          <Select
+            items={sortItems}
             value={draft.sort}
-            onChange={(event) =>
-              update({ sort: event.target.value as SortKey }, false)
-            }
+            onValueChange={(value) => {
+              if (typeof value === "string") {
+                update({ sort: value }, false);
+              }
+            }}
           >
-            {SORT_KEYS.map((key) => (
-              <option key={key} value={key}>
-                {labels.sortOptions[key]}
-              </option>
-            ))}
-          </select>
-        </label>
+            <SelectLabel>{labels.sort}</SelectLabel>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {sortItems.map((item) => (
+                <SelectItem key={item.value} value={item.value}>
+                  {item.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
         <label className="flex flex-col gap-1.5 text-sm font-medium">
           {labels.minPrice}
@@ -276,13 +307,11 @@ export function ProductFilterBar({
         </label>
 
         <label className="flex items-center gap-2 self-end pb-1.5 text-sm font-medium">
-          <input
-            type="checkbox"
+          <Checkbox
             name="inStock"
-            className="size-4 accent-primary"
             checked={draft.inStock}
-            onChange={(event) =>
-              update({ inStock: event.target.checked }, false)
+            onCheckedChange={(checked) =>
+              update({ inStock: checked }, false)
             }
           />
           {labels.inStock}
