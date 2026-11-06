@@ -87,3 +87,51 @@ Vitest lives in `apps/web` (`npm run test --workspace=apps/web`, or `npm test` f
 ## ADRs
 
 Every phase/major decision gets a numbered file in `docs/adr/` using `docs/adr/0000-template.md`. Write the ADR as part of the same change that implements the decision, not after.
+
+## Documentation and Information Disclosure
+
+Before writing to any repository file, apply the documentation-hygiene skill when available.
+
+Assume repository files may be publicly accessible.
+
+Document project-level knowledge, not incidental details of the developer's local environment.
+
+Never automatically copy machine-specific information, local processes, Docker container names, local paths, internal endpoints, credentials, or environment values into repository files.
+
+When uncertain whether information is appropriate for public documentation, omit it and ask the user.
+
+Before finishing a task, review modified files for unintended information disclosure.
+
+## Information Disclosure
+
+These rules apply to ALL agents and ALL tasks.
+
+- Assume all repository files are publicly accessible.
+- Never document incidental details of the local development environment.
+- Never copy local process listings, Docker container names,
+  machine-specific ports, local paths or internal endpoints
+  into project documentation.
+- Never expose secrets, credentials or actual environment values.
+- Distinguish project-level knowledge from temporary session findings.
+- Before modifying documentation, evaluate whether each detail
+  is relevant and safe to share.
+- Before completing a task, review modified files for
+  unintended information disclosure.
+
+When uncertain, omit the information and ask the user.
+
+## Agent Skills
+
+Project skills are located in `.agents/skills/`.
+
+- Discover and use relevant skills when performing tasks.
+- Follow skill instructions when their described workflow applies.
+- Apply documentation-hygiene whenever creating or modifying repository files.
+- Apply spec-driven-development when working with requirements,
+  specifications, implementation plans, or feature development.
+- Apply code-review before considering implementation work complete.
+
+Skills provide specialized workflows.
+This file defines the general rules that apply across the project.
+
+If instructions conflict, prioritize security and information disclosure restrictions.
