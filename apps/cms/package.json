@@ -8,6 +8,7 @@
     "build": "cross-env NODE_OPTIONS=--no-deprecation next build",
     "start": "cross-env NODE_OPTIONS=--no-deprecation next start --port 3001",
     "lint": "eslint",
+    "typecheck": "cross-env NODE_OPTIONS=--no-deprecation next typegen && tsc --noEmit",
     "payload": "cross-env NODE_OPTIONS=--no-deprecation payload",
     "seed": "cross-env NODE_OPTIONS=--no-deprecation payload run seed/products.ts",
     "seed:categories": "cross-env NODE_OPTIONS=--no-deprecation payload run seed/categories.ts",

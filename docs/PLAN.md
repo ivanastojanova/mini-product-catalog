@@ -18,11 +18,11 @@ How the docs fit together:
 | 4 | Checkout & orders (state machine, stock reservation) | ✅ Done | [0004-checkout.md](specs/0004-checkout.md) | [0007](adr/0007-inventory-and-lazy-reservation-expiry.md), [0008](adr/0008-cookie-bound-guest-orders.md) |
 | 5 | Mock payment gateway (async, Stripe-style webhook + idempotency) | ✅ Done | [0005-payments.md](specs/0005-payments.md) | [0009](adr/0009-separate-mock-payment-gateway.md), [0010](adr/0010-webhook-as-only-source-of-payment-truth.md) |
 | 6 | Frontend e-commerce polish (filtering, mini-cart, cart page, order confirmation) | ✅ Done | [0006-storefront-polish.md](specs/0006-storefront-polish.md) | [0011](adr/0011-server-side-catalog-filtering.md) |
-| 7 | CI (lint/typecheck/test on PR) | Planned | — | — |
+| 7 | CI (lint/typecheck/test on PR) | 🚧 In progress | — | — |
 
 ## Current session handoff
 
-**Where things stand:** Phases 1–6 are done. Phase 6 (frontend e-commerce polish: filtering, cart page, mini-cart, paid-order confirmation) is closed; spec: [specs/0006-storefront-polish.md](specs/0006-storefront-polish.md). Next: Phase 7 (CI).
+**Where things stand:** Phases 1–6 are done. Phase 7 (CI) is partly built and **not yet run on GitHub** — see the Phase 7 notes below. Phase 6 is closed and merged; spec: [specs/0006-storefront-polish.md](specs/0006-storefront-polish.md).
 
 **Decided for Phase 6:** header dropdown mini-cart plus a `/[lang]/cart` page; order-confirmation polish for paid orders only; "Continue shopping" on a pending order stays under *Future dev fixes*; filtering is a single search and filter bar.
 
@@ -45,6 +45,16 @@ How the docs fit together:
 **Test counts:** apps/api 541, apps/gateway 176, apps/web 208; typecheck and lint clean across all apps. The user click-tested the filtering, cart page, mini-cart and paid-order confirmation in EN and DE.
 
 **Next:** Phase 7 (CI: lint/typecheck/test on PR). No Phase 6 implementation work is open. Phase 6 leftovers that were deliberately not done stay under *Future dev fixes* / the spec's known limits (mixed-currency cart cannot remove the offending line; a pending order's "Continue shopping" is unchanged).
+
+**Phase 7 — CI (in progress, not yet verified on GitHub):**
+
+- Decided with the user: GitHub Actions, one sequential job on `ubuntu-latest`, running **lint + typecheck + test** (no `next build`, to keep the run short). Triggered on `pull_request` and on pushes to `main`; `concurrency` cancels superseded runs on the same ref.
+- `.nvmrc` pins Node 22 (CI reads it via `node-version-file`, so local and CI agree).
+- `typecheck` scripts added to all four apps plus the root (`npm run typecheck`). apps/api and apps/gateway use `tsc --noEmit`; apps/web and apps/cms use `next typegen && tsc --noEmit`, because Next 16 only generates route types during `dev`/`build` — a bare `tsc` on a fresh checkout would skip them.
+- `.github/workflows/ci.yml`: `npm ci` (with the npm download cache) → lint → typecheck → test.
+- Verified locally: lint clean, all four typechecks pass, tests green (apps/api 541, apps/gateway 176, apps/web 208) with no env vars in the shell — the suites and both servers fall back to documented defaults, so no `.env` is needed in CI.
+- **Remaining:** commit on a branch, push, confirm the workflow runs green on GitHub, then mark Phase 7 ✅ Done here and in the README.
+- No Phase 6 implementation work is open; its deliberate leftovers stay under *Future dev fixes* / the spec's known limits (the mixed-currency cart cannot remove the offending line; a pending order's "Continue shopping" is unchanged).
 
 Phases are logged below in order (2, 3, 4, 5). Each has its design in `docs/specs/` and its decisions in `docs/adr/`; this file only keeps the status.
 
