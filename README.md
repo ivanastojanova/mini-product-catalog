@@ -294,7 +294,10 @@ Vitest lives in `apps/api`, `apps/gateway` and `apps/web`.
 npm run test                        # from root — runs apps/api's suite, then apps/gateway's, then apps/web's
 npm run test --workspace=apps/api   # one app, explicit
 npm run test:watch --workspace=apps/web
+npm run typecheck                   # tsc --noEmit in every app; apps/web and apps/cms run `next typegen` first
 ```
+
+**Continuous integration.** Every PR (and every push to `main`) runs `npm ci`, `npm run lint`, `npm run typecheck` and `npm run test` in one GitHub Actions job — see [`.github/workflows/ci.yml`](.github/workflows/ci.yml). It runs on the Node major pinned in [`.nvmrc`](.nvmrc), and needs no `.env` files: the tests and both servers fall back to their documented defaults.
 
 Current coverage: apps/api has Vitest suites for auth (hashing, session tokens, register/login/logout/session routes), the cart (resolution, routes, guest→customer merge), inventory and reservations, checkout preview and order creation, and the payment webhook (signature, idempotency). apps/gateway covers its API key, return-URL allow-list, idempotency keys, settling once, signed delivery, refunds and the pay page. apps/web covers the catalog filters and query builders, cart client (API wrappers, optimistic add + rollback, cart write invalidation), route protection, order/checkout API wrappers and formatting helpers. Also `/api/revalidate` auth accept/reject + tag selection on rename (`apps/web/app/api/revalidate/route.test.ts`) — the highest-value test from the original take-home's testing plan, now also covering the webhook path end-to-end.
 
@@ -327,7 +330,7 @@ This project is being extended in phases. See [`docs/PLAN.md`](docs/PLAN.md) for
 | 4 | Checkout & orders (state machine, stock reservation — see [ADR 0007](docs/adr/0007-inventory-and-lazy-reservation-expiry.md), [ADR 0008](docs/adr/0008-cookie-bound-guest-orders.md)) | ✅ Done |
 | 5 | Mock payment gateway (async, Stripe-style webhook + idempotency — see [ADR 0009](docs/adr/0009-separate-mock-payment-gateway.md), [ADR 0010](docs/adr/0010-webhook-as-only-source-of-payment-truth.md)) | ✅ Done |
 | 6 | Frontend e-commerce polish (filtering, mini-cart, cart page, order confirmation) — filtering decision in [ADR 0011](docs/adr/0011-server-side-catalog-filtering.md) | ✅ Done |
-| 7 | CI (lint/typecheck/test on PR) | Planned |
+| 7 | CI (lint/typecheck/test on PR) | 🚧 In progress |
 
 ### Tradeoffs / open items
 
