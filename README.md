@@ -32,6 +32,8 @@ This split (two separate Next.js apps, two separate processes, two separate data
 
 ## Setup and run
 
+Requires Node **22.23.4 or newer** (Payload 3.92+ refuses to run below it). `.nvmrc` pins the major, and CI uses the same version.
+
 ```bash
 npm install                 # installs all workspaces
 npm run dev                 # starts apps/cms (:3001), apps/api (:4000), apps/gateway (:4100), apps/web (:3000)
@@ -297,7 +299,7 @@ npm run test:watch --workspace=apps/web
 npm run typecheck                   # tsc --noEmit in every app; apps/web and apps/cms run `next typegen` first
 ```
 
-**Continuous integration.** Every PR (and every push to `main`) runs `npm ci`, `npm run lint`, `npm run typecheck` and `npm run test` in one GitHub Actions job — see [`.github/workflows/ci.yml`](.github/workflows/ci.yml). It runs on the Node major pinned in [`.nvmrc`](.nvmrc), and needs no `.env` files: the tests and both servers fall back to their documented defaults.
+**Continuous integration.** Every PR (and every push to `main`) runs `npm ci`, `npm run lint`, `npm run typecheck` and `npm run test` in one GitHub Actions job — see [`.github/workflows/ci.yml`](.github/workflows/ci.yml). It runs on the Node major pinned in [`.nvmrc`](.nvmrc), and needs no `.env` files: CI only type-checks the apps and runs the test suites, which use their own temp databases and fall back to documented defaults.
 
 Current coverage: apps/api has Vitest suites for auth (hashing, session tokens, register/login/logout/session routes), the cart (resolution, routes, guest→customer merge), inventory and reservations, checkout preview and order creation, and the payment webhook (signature, idempotency). apps/gateway covers its API key, return-URL allow-list, idempotency keys, settling once, signed delivery, refunds and the pay page. apps/web covers the catalog filters and query builders, cart client (API wrappers, optimistic add + rollback, cart write invalidation), route protection, order/checkout API wrappers and formatting helpers. Also `/api/revalidate` auth accept/reject + tag selection on rename (`apps/web/app/api/revalidate/route.test.ts`) — the highest-value test from the original take-home's testing plan, now also covering the webhook path end-to-end.
 
@@ -315,6 +317,17 @@ Planned, in priority order as each phase lands (see [AGENTS.md](AGENTS.md) "Test
 
 Money-critical and security-critical logic ships with tests in the same change, not retrofitted later.
 
+## Dependencies
+
+Dependabot proposes routine npm minor/patch updates as one grouped weekly PR, keeps major bumps as individual PRs, and updates the GitHub Actions themselves separately — see [`.github/dependabot.yml`](.github/dependabot.yml). Every such PR runs the full CI job before it can merge.
+
+`npm audit` still reports two advisories that cannot be fixed from this repository:
+
+- **dompurify** (critical): `monaco-editor` (0.57.0, the editor inside Payload's admin UI) requires exactly `3.4.15` as a **peer** dependency. npm does not apply `overrides` to peers, and monaco-editor has not shipped a release with a newer DOMPurify.
+- **happy-dom** (high; reported three times via `@payloadcms/richtext-lexical` → `@lexical/headless`): lexical accepts only `happy-dom ^20`, and every 20.x release is affected. Fixing it needs a lexical major bump, which is Payload's call.
+
+Both sit behind the CMS admin's own UI code paths rather than storefront input.
+
 ---
 
 ## Roadmap
@@ -330,7 +343,8 @@ This project is being extended in phases. See [`docs/PLAN.md`](docs/PLAN.md) for
 | 4 | Checkout & orders (state machine, stock reservation — see [ADR 0007](docs/adr/0007-inventory-and-lazy-reservation-expiry.md), [ADR 0008](docs/adr/0008-cookie-bound-guest-orders.md)) | ✅ Done |
 | 5 | Mock payment gateway (async, Stripe-style webhook + idempotency — see [ADR 0009](docs/adr/0009-separate-mock-payment-gateway.md), [ADR 0010](docs/adr/0010-webhook-as-only-source-of-payment-truth.md)) | ✅ Done |
 | 6 | Frontend e-commerce polish (filtering, mini-cart, cart page, order confirmation) — filtering decision in [ADR 0011](docs/adr/0011-server-side-catalog-filtering.md) | ✅ Done |
-| 7 | CI (lint/typecheck/test on PR) | 🚧 In progress |
+| 7 | CI (lint/typecheck/test on PR) | ✅ Done |
+| 8 | Dependency hygiene (security bumps, Dependabot) | ✅ Done |
 
 ### Tradeoffs / open items
 

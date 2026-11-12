@@ -18,11 +18,25 @@ How the docs fit together:
 | 4 | Checkout & orders (state machine, stock reservation) | ✅ Done | [0004-checkout.md](specs/0004-checkout.md) | [0007](adr/0007-inventory-and-lazy-reservation-expiry.md), [0008](adr/0008-cookie-bound-guest-orders.md) |
 | 5 | Mock payment gateway (async, Stripe-style webhook + idempotency) | ✅ Done | [0005-payments.md](specs/0005-payments.md) | [0009](adr/0009-separate-mock-payment-gateway.md), [0010](adr/0010-webhook-as-only-source-of-payment-truth.md) |
 | 6 | Frontend e-commerce polish (filtering, mini-cart, cart page, order confirmation) | ✅ Done | [0006-storefront-polish.md](specs/0006-storefront-polish.md) | [0011](adr/0011-server-side-catalog-filtering.md) |
-| 7 | CI (lint/typecheck/test on PR) | 🚧 In progress | — | — |
+| 7 | CI (lint/typecheck/test on PR) | ✅ Done | — | — |
+| 8 | Dependency hygiene (security bumps, Dependabot) | ✅ Done | — | — |
 
 ## Current session handoff
 
-**Where things stand:** Phases 1–6 are done. Phase 7 (CI) is partly built and **not yet run on GitHub** — see the Phase 7 notes below. Phase 6 is closed and merged; spec: [specs/0006-storefront-polish.md](specs/0006-storefront-polish.md).
+**Where things stand:** Phases 1–8 are done. Phase 7 (CI) runs green on GitHub; Phase 8 (dependency hygiene) is built and verified locally but still needs a browser click-through of the storefront and the CMS admin after the framework upgrades. Nothing else is in flight — the next session picks from the open TBDs at the bottom of this file or the *Future dev fixes* list.
+
+**Phase 8 — Dependency hygiene. Done, awaiting a post-upgrade click-through.**
+
+- Decided with the user: clear the `npm audit` findings before new feature work; Dependabot weekly with one grouped PR for minor/patch, majors as individual PRs, max 3 open, plus a separate weekly job for the GitHub Actions (`.github/dependabot.yml`).
+- Upgrade order, one commit each so a regression bisects: **next → payload → vitest → `npm audit fix`**. Every step verified with lint, typecheck, the full test suite, and — for the Next/Payload steps — a real `next build` of both apps.
+- **next 16.2.10 → 16.4.5** in apps/web and apps/cms (`next` + `eslint-config-next` together). Clears every `next` advisory (all end at `<= 16.4.0`), plus the `postcss` and `sharp` ones. 16.4.6 exists but is newer than the 7-day dependency-age policy on the dev machine, so Dependabot's grouped PR carries it.
+- **Node 22.23.4+ is now required**: payload 3.92 raised its minimum, so `.nvmrc` stays on major 22 while the README states the patch floor. CI already resolved 22.23.4.
+- **payload 3.86.0 → 3.93.0** (all five `@payloadcms/*` + `payload`). 3.93 flags security updates; every payload advisory ends at `< 3.90.0`. `payload-types.ts` regenerated (adds `resetPasswordRequestedAt`). The dev-time schema push adds that column — verified against a **copy** of `payload.db`: data intact (10 products, 5 categories, 10 media, 1 user), EN/DE titles and the category relationship unchanged, `/admin` 200.
+- **vitest 3.2.4 → 5.1.0** in all three test apps; no config changes needed. Forced `@types/node` `^20 → ^22` in every app (vitest 5 peer). All suites still pass: 541 / 176 / 208.
+- `npm audit fix` for the remaining in-place transitive bumps. Ignored the audit's suggested "fix" for the lexical chain (`@payloadcms/richtext-lexical@3.78.0`), which is a *downgrade* that would reintroduce the payload advisories.
+- Result: **45 → 28 advisories; 5 critical → 1, 13 high → 3** (the three high entries are one `happy-dom` advisory inherited by its two parents).
+- **Known remaining advisories** (documented in the README, cannot be fixed here): `dompurify` 3.4.15 is a **peer** of `monaco-editor` 0.57.0 (npm does not apply `overrides` to peers; no newer monaco release), and `happy-dom ^20` is required by `@lexical/headless` inside Payload's richtext.
+- **Needs a click-through:** `apps/web/app/globals.css` imports `shadcn/tailwind.css`, and re-adding `shadcn` resolved 4.21.0 → 4.23.0, so the theme's base CSS may differ. Check the storefront (home, filters, cart, checkout, order page) and the CMS admin in EN and DE.
 
 **Decided for Phase 6:** header dropdown mini-cart plus a `/[lang]/cart` page; order-confirmation polish for paid orders only; "Continue shopping" on a pending order stays under *Future dev fixes*; filtering is a single search and filter bar.
 
@@ -44,16 +58,13 @@ How the docs fit together:
 
 **Test counts:** apps/api 541, apps/gateway 176, apps/web 208; typecheck and lint clean across all apps. The user click-tested the filtering, cart page, mini-cart and paid-order confirmation in EN and DE.
 
-**Next:** Phase 7 (CI: lint/typecheck/test on PR). No Phase 6 implementation work is open. Phase 6 leftovers that were deliberately not done stay under *Future dev fixes* / the spec's known limits (mixed-currency cart cannot remove the offending line; a pending order's "Continue shopping" is unchanged).
-
-**Phase 7 — CI (in progress, not yet verified on GitHub):**
+**Phase 7 — CI. Done.**
 
 - Decided with the user: GitHub Actions, one sequential job on `ubuntu-latest`, running **lint + typecheck + test** (no `next build`, to keep the run short). Triggered on `pull_request` and on pushes to `main`; `concurrency` cancels superseded runs on the same ref.
 - `.nvmrc` pins Node 22 (CI reads it via `node-version-file`, so local and CI agree).
 - `typecheck` scripts added to all four apps plus the root (`npm run typecheck`). apps/api and apps/gateway use `tsc --noEmit`; apps/web and apps/cms use `next typegen && tsc --noEmit`, because Next 16 only generates route types during `dev`/`build` — a bare `tsc` on a fresh checkout would skip them.
 - `.github/workflows/ci.yml`: `npm ci` (with the npm download cache) → lint → typecheck → test.
-- Verified locally: lint clean, all four typechecks pass, tests green (apps/api 541, apps/gateway 176, apps/web 208) with no env vars in the shell — the suites and both servers fall back to documented defaults, so no `.env` is needed in CI.
-- **Remaining:** commit on a branch, push, confirm the workflow runs green on GitHub, then mark Phase 7 ✅ Done here and in the README.
+- Verified locally and on GitHub: lint clean, all four typechecks pass, tests green (apps/api 541, apps/gateway 176, apps/web 208). No `.env` is needed — the suites and both servers fall back to documented defaults.
 - No Phase 6 implementation work is open; its deliberate leftovers stay under *Future dev fixes* / the spec's known limits (the mixed-currency cart cannot remove the offending line; a pending order's "Continue shopping" is unchanged).
 
 Phases are logged below in order (2, 3, 4, 5). Each has its design in `docs/specs/` and its decisions in `docs/adr/`; this file only keeps the status.
@@ -144,7 +155,9 @@ Things Phase 4 inherits from Phase 3:
 - [x] Manual browser click-through of "Trying a payment" passed (user-tested). One UX finding, not a payment bug, is logged under *Future dev fixes*: "Continue shopping" on a pending order.
 - **Known gaps** (accepted; see the spec and ADR 0010): no webhook retries or reconcile job (a lost webhook leaves the order `pending_payment` until it expires; a failed refund stays `refund_pending`); no `refunded` order state; no rate limiting on the webhook or pay page; one signing secret with no rotation overlap; gateway idempotency records are never purged.
 
-Open TBDs carried forward: `sessions.ip_address` unpopulated, login rate limiting, expired session/guest-cart row cleanup, production `SameSite`/cookie scope across domains (ADR 0004). Phase 6 is closed with no open implementation TBDs.
+Open TBDs carried forward: `sessions.ip_address` unpopulated, login rate limiting, expired session/guest-cart row cleanup, production `SameSite`/cookie scope across domains (ADR 0004). Phases 6–8 are closed with no open implementation items.
+
+**Candidate next work** (nothing scheduled): the *Future dev fixes* item below (pending-order "Continue shopping", option A is the small stopgap); login rate limiting and expired-row cleanup from the TBD list; or a new phase of your choosing — add a spec under `docs/specs/` before building it.
 
 See [AGENTS.md](../AGENTS.md#working-style) for the standing collaboration rules (small pieces, ask before deps/tradeoffs, tests ship with security-critical code, prioritize clickable UI).
 
