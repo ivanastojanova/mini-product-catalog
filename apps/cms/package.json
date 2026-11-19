@@ -21,10 +21,10 @@
     "@payloadcms/richtext-lexical": "3.93.0",
     "@payloadcms/ui": "3.93.0",
     "graphql": "^16.14.2",
-    "next": "16.4.5",
+    "next": "16.4.6",
     "payload": "3.93.0",
-    "react": "19.2.4",
-    "react-dom": "19.2.4",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
     "sharp": "^0.35.3"
   },
   "devDependencies": {
@@ -34,7 +34,7 @@
     "cross-env": "^10.1.0",
     "dotenv": "^17.4.2",
     "eslint": "^9",
-    "eslint-config-next": "16.4.5",
+    "eslint-config-next": "16.4.6",
     "typescript": "^5"
   }
 }
